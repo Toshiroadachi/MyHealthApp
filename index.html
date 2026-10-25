@@ -154,11 +154,19 @@ h2.page{font-size:20px;margin:6px 0 14px}
 .chart{width:100%;height:auto;display:block}
 .chart .grid{stroke:var(--line);stroke-width:1}
 .chart .ax{fill:var(--sub);font-size:10px}
+.bodymap .bm-base{fill:var(--soft);stroke:var(--line);stroke-width:1}
+.bodymap .bm-off{fill:var(--line)}
+.bodymap .bm-on{fill:#e5484d}
+.bodymap .bm-lead{stroke:var(--sub);stroke-width:.7;stroke-dasharray:2 2;opacity:.6}
+.bodymap .bm-name{font-size:10px;fill:var(--sub)}
+.bodymap .bm-pct{font-size:14px;font-weight:800;fill:var(--text)}
+.bodymap .bm-zero{opacity:.35}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .legend button{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--soft);display:inline-flex;align-items:center;gap:5px;font-weight:600}
 .legend button i{width:9px;height:9px;border-radius:50%;background:var(--c)}
 .legend button.off{opacity:.35}
 .hbar{display:grid;grid-template-columns:64px 1fr auto;gap:8px;align-items:center;font-size:13px;margin:7px 0}
+.hbar.wide{grid-template-columns:110px 1fr auto}
 .hbar .track{height:14px;border-radius:7px;background:var(--soft);overflow:hidden}
 .hbar .fill{height:100%;border-radius:7px}
 .hbar .v{font-variant-numeric:tabular-nums;font-weight:700;min-width:70px;text-align:right}
@@ -223,12 +231,14 @@ const DEFAULT_PARTS = [
 const PALETTE = [...new Set([...DEFAULT_PARTS.map(p => p[2]), ...GROUPS.map(g => g.color)])];
 // [名前, 部位(最大3・先頭が主), 記録の種類, 距離の単位]
 const DEFAULT_MENUS = [
-  ['ベンチプレス', ['大胸筋', '三角筋前部', '上腕三頭筋']], ['ダンベルフライ', ['大胸筋', '三角筋前部']],
+  ['ベンチプレス', ['大胸筋', '三角筋前部', '上腕三頭筋']], ['ナローベンチプレス', ['上腕三頭筋', '大胸筋', '三角筋前部']],
+  ['インクラインベンチプレス', ['大胸筋', '三角筋前部', '上腕三頭筋']], ['チェストプレス', ['大胸筋', '三角筋前部', '上腕三頭筋']],
+  ['ダンベルフライ', ['大胸筋', '三角筋前部']],
   ['腕立て伏せ', ['大胸筋', '上腕三頭筋', '三角筋前部']],
   ['ラットプルダウン', ['広背筋', '上腕二頭筋', '三角筋後部']], ['シーテッドロー', ['広背筋', '僧帽筋', '上腕二頭筋']],
   ['懸垂', ['広背筋', '上腕二頭筋', '僧帽筋']], ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
   ['ショルダープレス', ['三角筋前部', '三角筋中部', '上腕三頭筋']], ['サイドレイズ', ['三角筋中部']],
-  ['アームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
+  ['アームカール', ['上腕二頭筋', '前腕']], ['インクラインアームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
   ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['レッグプレス', ['大腿四頭筋', '大臀筋']],
   ['クランチ', ['腹直筋']], ['レッグレイズ', ['腹直筋', '腹斜筋']],
   ['水泳', ['心肺（持久力）', '広背筋', '三角筋前部'], 'distTime', 'm'],
@@ -236,6 +246,9 @@ const DEFAULT_MENUS = [
   ['トレッドミル ランニング', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'treadmill'],
   ['トレッドミル インクラインウォーク', ['心肺（持久力）', '大臀筋', 'ふくらはぎ'], 'treadmill'],
 ];
+const DATA_VERSION = 3;
+// バージョンごとに追加した初期メニュー（既存ユーザーにも自動で追加する）
+const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'] };
 const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・距離・傾斜']];
 // 旧バージョン（大まかな部位）からの移行用
 const OLD_GROUP = { '胸': 'chest', '背中': 'back', '肩': 'shoulder', '腕': 'arm', '脚': 'leg', 'お尻': 'leg', '腹': 'abs', '全身': 'cardio' };
@@ -250,7 +263,7 @@ function defaultData() {
   const P = n => parts.find(p => p.name === n).id;
   const menus = DEFAULT_MENUS.map(([name, ps, kind = 'strength', distUnit = 'km'], i) =>
     ({ id: 'n' + (i+1), name, partIds: ps.map(P), kind, distUnit }));
-  return { version: 2, parts, menus, logs: [], settings: { weightStep: 2.5, includeSub: false, lastBackup: null } };
+  return { version: DATA_VERSION, parts, menus, logs: [], settings: { weightStep: 2.5, includeSub: false, lastBackup: null } };
 }
 const num0 = v => Math.max(0, +v || 0);
 function normLog(l) {
@@ -267,7 +280,7 @@ function normalize(d) {
   if (!d || typeof d !== 'object') return defaultData();
   const def = defaultData();
   const out = {
-    version: 2,
+    version: DATA_VERSION,
     parts: Array.isArray(d.parts) ? d.parts.filter(p => p && p.id && p.name).map((p, i) => ({
       id: String(p.id), name: String(p.name), color: p.color || PALETTE[i % PALETTE.length],
       group: GROUPS.some(g => g.id === p.group) ? p.group : (OLD_GROUP[p.name] || 'other') })) : def.parts,
@@ -277,24 +290,32 @@ function normalize(d) {
     logs: Array.isArray(d.logs) ? d.logs.filter(l => l && l.id && /^\d{4}-\d{2}-\d{2}$/.test(l.date)).map(normLog) : [],
     settings: Object.assign({}, def.settings, d.settings || {}),
   };
-  if ((+d.version || 1) < 2 && Array.isArray(d.parts)) migrateV1(out);
+  const ver = +d.version || 1;
+  if (Array.isArray(d.parts)) {
+    if (ver < 2) migrateV1(out);
+    else for (const [v, names] of Object.entries(MENUS_ADDED_IN)) if (ver < +v) addDefaultMenus(out, names);
+  }
   return out;
 }
 // v1 → v2: 細かい部位と新メニューを追加し、初期メニューの部位を細分化
 function migrateV1(d) {
-  const byName = n => d.parts.find(p => p.name === n);
-  for (const [name, group, color] of DEFAULT_PARTS) if (!byName(name)) d.parts.push({ id: 'q' + uid(), name, group, color });
+  for (const [name, group, color] of DEFAULT_PARTS) if (!d.parts.some(p => p.name === name)) d.parts.push({ id: 'q' + uid(), name, group, color });
+  addDefaultMenus(d, null, (m, ids) => {
+    const cur = m.partIds.map(id => (d.parts.find(p => p.id === id) || {}).name).join('/');
+    if (V1_MENUS[m.name] === cur) m.partIds = ids; // 自分で変更していない初期メニューだけ置き換える
+  });
+  d.parts = d.parts.filter(p => !(OLD_GROUP[p.name] && !d.menus.some(m => m.partIds.includes(p.id))));
+}
+// 初期メニューのうち names（null は全部）で無いものを、初期の並び順に近い位置へ追加する
+function addDefaultMenus(d, names, onExisting) {
   let prev = -1;
   for (const [name, ps, kind = 'strength', distUnit = 'km'] of DEFAULT_MENUS) {
-    const ids = ps.map(n => byName(n).id);
+    const ids = ps.map(n => (d.parts.find(p => p.name === n) || {}).id).filter(Boolean);
     const i = d.menus.findIndex(m => m.name === name);
-    if (i < 0) { d.menus.splice(prev + 1, 0, { id: 'n' + uid(), name, partIds: ids, kind, distUnit }); prev++; continue; }
-    prev = i;
-    const m = d.menus[i];
-    const cur = m.partIds.map(id => (d.parts.find(p => p.id === id) || {}).name).join('/');
-    if (V1_MENUS[name] === cur) m.partIds = ids; // 自分で変更していない初期メニューだけ置き換える
+    if (i >= 0) { prev = i; if (onExisting) onExisting(d.menus[i], ids); continue; }
+    if (names && !names.includes(name)) continue;
+    d.menus.splice(++prev, 0, { id: 'n' + uid(), name, partIds: ids, kind, distUnit });
   }
-  d.parts = d.parts.filter(p => !(OLD_GROUP[p.name] && !d.menus.some(m => m.partIds.includes(p.id))));
 }
 function load() {
   try { const s = localStorage.getItem(STORE_KEY); if (s) return normalize(JSON.parse(s)); }
@@ -330,7 +351,7 @@ function save() {
   catch (e) { toast('保存に失敗しました: ' + e.message); }
 }
 // 旧バージョンのデータは移行した内容で保存し直す
-try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":2}').version || 1) < 2) save(); } catch (e) { console.error(e); }
+try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":3}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
 
 const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
 function lastByMenu() {
@@ -354,7 +375,7 @@ const usedGroups = () => GROUPS.filter(g => data.parts.some(p => p.group === g.i
 const ui = {
   tab: 'record', date: today(), partFilter: 'all', search: '',
   histMonth: today().slice(0, 7), histPart: 'all',
-  graph: { range: '3m', metric: 'sets', by: 'group', part: null, menuId: '' },
+  graph: { range: '3m', metric: 'sets', by: 'group', part: null, menuId: '', mapRange: '1w', mapView: 'f' },
   sheet: null, pending: null,
 };
 
@@ -596,6 +617,99 @@ function menuProgress(menuId, logs, start, end) {
     ${pts.length ? svgLine(pts, start, end, color) : '<div class="empty">この期間の記録はありません</div>'}`;
 }
 
+/* ========== 部位マップ（人体図） ========== */
+// 人体図の各筋肉の形（x=80 を中心にした座標）。side/ly はラベルを左右どちらの何pxに出すか
+const ell = (cx, cy, rx, ry, r = 0) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"${r ? ` transform="rotate(${r} ${cx} ${cy})"` : ''}/>`;
+const pair = (cx, cy, rx, ry, r = 0) => ell(cx, cy, rx, ry, r) + ell(160 - cx, cy, rx, ry, -r);
+const REGIONS = [
+  // 前面
+  { id: 'deltS', name: '三角筋中部', view: 'f', svg: pair(43, 69, 6, 9), at: [43, 66], side: 'L', ly: 52 },
+  { id: 'deltF', name: '三角筋前部', view: 'f', svg: pair(54, 75, 8, 10), at: [106, 75], side: 'R', ly: 56 },
+  { id: 'chest', name: '大胸筋', view: 'f', svg: pair(68, 89, 12, 10), at: [92, 88], side: 'R', ly: 88 },
+  { id: 'biceps', name: '上腕二頭筋', view: 'f', svg: pair(41, 103, 6, 15, 12), at: [41, 103], side: 'L', ly: 96 },
+  { id: 'abs', name: '腹直筋', view: 'f', svg: '<rect x="72" y="102" width="16" height="48" rx="5"/>', at: [86, 118], side: 'R', ly: 120 },
+  { id: 'obliques', name: '腹斜筋', view: 'f', svg: pair(62, 128, 6, 17), at: [98, 136], side: 'R', ly: 152 },
+  { id: 'forearm', name: '前腕', view: 'f', svg: pair(33, 146, 6, 19, 8), at: [33, 146], side: 'L', ly: 142 },
+  { id: 'quads', name: '大腿四頭筋', view: 'f', svg: pair(64, 212, 9, 30), at: [64, 212], side: 'L', ly: 206 },
+  { id: 'adductors', name: '内転筋', view: 'f', svg: pair(75, 200, 4, 18), at: [85, 200], side: 'R', ly: 198 },
+  // 背面
+  { id: 'traps', name: '僧帽筋', view: 'b', svg: '<polygon points="80,46 101,64 80,96 59,64"/>', at: [64, 64], side: 'L', ly: 46 },
+  { id: 'deltR', name: '三角筋後部', view: 'b', svg: pair(48, 72, 9, 10), at: [48, 72], side: 'L', ly: 76 },
+  { id: 'triceps', name: '上腕三頭筋', view: 'b', svg: pair(41, 104, 6, 16, 12), at: [41, 104], side: 'L', ly: 108 },
+  { id: 'lats', name: '広背筋', view: 'b', svg: pair(64, 110, 9, 24, -10), at: [96, 108], side: 'R', ly: 92 },
+  { id: 'erector', name: '脊柱起立筋', view: 'b', svg: '<rect x="75" y="98" width="10" height="52" rx="4"/>', at: [84, 135], side: 'R', ly: 128 },
+  { id: 'forearm', name: '前腕', view: 'b', svg: pair(33, 146, 6, 19, 8), at: [33, 146], side: 'L', ly: 142 },
+  { id: 'glutes', name: '大臀筋', view: 'b', svg: pair(69, 170, 11, 11), at: [91, 170], side: 'R', ly: 166 },
+  { id: 'hams', name: 'ハムストリングス', view: 'b', svg: pair(66, 214, 10, 28), at: [94, 214], side: 'R', ly: 210 },
+  { id: 'calves', name: 'ふくらはぎ', view: 'b', svg: pair(67, 268, 8, 20), at: [67, 268], side: 'L', ly: 262 },
+];
+const BODY_BASE = `<circle cx="80" cy="26" r="16"/><rect x="73" y="38" width="14" height="16" rx="4"/>
+  <path d="M52 62 Q80 52 108 62 L112 100 Q106 140 104 160 L56 160 Q54 140 48 100 Z"/><rect x="56" y="150" width="48" height="34" rx="12"/>
+  ${pair(50, 70, 12, 11)}${pair(42, 100, 10, 26, 12)}${pair(33, 146, 8, 24, 8)}<circle cx="29" cy="174" r="6"/><circle cx="131" cy="174" r="6"/>
+  ${pair(67, 212, 14, 38)}${pair(67, 276, 10, 30)}${pair(65, 310, 10, 5)}`;
+const REGION_BY_NAME = Object.fromEntries(REGIONS.map(r => [r.name, r.id]));
+const REGION_BY_GROUP = { chest: 'chest', back: 'lats', shoulder: 'deltF', arm: 'biceps', leg: 'quads', abs: 'abs' };
+// 部位 → 人体図の場所（自分で追加した部位は名前や大分類から推定。有酸素などは図に出さない）
+function regionOf(p) {
+  if (REGION_BY_NAME[p.name]) return REGION_BY_NAME[p.name];
+  if (/臀|お尻|尻/.test(p.name)) return 'glutes';
+  return REGION_BY_GROUP[p.group] || null;
+}
+const MAP_RANGES = [['1w', '1週間', 6], ['1m', '1ヶ月', 29], ['all', '全期間', null]];
+const SUB_WEIGHT = 0.5;
+function bodyStats(start) {
+  const byRegion = {}, others = {};
+  let total = 0, cardioN = 0, cardioDist = 0, cardioTimeSum = 0;
+  for (const l of data.logs) {
+    if (l.date < start || l.date > today()) continue;
+    if (logKind(l) !== 'strength') { cardioN++; cardioDist += l.distance; cardioTimeSum += cardioTime(l); continue; }
+    logParts(l).forEach((p, i) => {
+      const v = l.sets * (i === 0 ? 1 : SUB_WEIGHT), r = regionOf(p);
+      if (r) byRegion[r] = (byRegion[r] || 0) + v; else others[p.name] = (others[p.name] || 0) + v;
+      total += v;
+    });
+  }
+  return { byRegion, others, total, cardioN, cardioDist, cardioTimeSum };
+}
+function bodySvg(view, st) {
+  const max = Math.max(0, ...Object.values(st.byRegion));
+  const OX = 70; // 人体図を中央に置くためのずらし
+  let shapes = '', labels = '';
+  for (const r of REGIONS.filter(x => x.view === view)) {
+    const v = st.byRegion[r.id] || 0, ratio = max ? v / max : 0;
+    shapes += `<g class="${v ? 'bm-on' : 'bm-off'}" style="fill-opacity:${v ? (0.25 + 0.75 * ratio).toFixed(2) : 1}">${r.svg}</g>`;
+    const pct = st.total ? Math.round(v / st.total * 100) : 0;
+    const L = r.side === 'L', x = L ? 4 : 296, lineX = L ? 66 : 234;
+    labels += `<g class="${v ? '' : 'bm-zero'}">
+      <line x1="${r.at[0] + OX}" y1="${r.at[1]}" x2="${lineX}" y2="${r.ly + 4}" class="bm-lead"/>
+      <text x="${x}" y="${r.ly}" class="bm-name" text-anchor="${L ? 'start' : 'end'}">${r.name}</text>
+      <text x="${x}" y="${r.ly + 15}" class="bm-pct" text-anchor="${L ? 'start' : 'end'}">${pct}%</text></g>`;
+  }
+  return `<svg viewBox="0 0 300 322" class="chart bodymap" role="img" aria-label="${view === 'f' ? '前面' : '背面'}の部位マップ">
+    <g transform="translate(${OX} 0)"><g class="bm-base">${BODY_BASE}</g>${shapes}</g>${labels}</svg>`;
+}
+function renderBodyMap() {
+  const G = ui.graph, rg = MAP_RANGES.find(r => r[0] === G.mapRange);
+  const start = rg[2] === null ? data.logs.reduce((a, l) => l.date < a ? l.date : a, today()) : addDays(today(), -rg[2]);
+  const st = bodyStats(start);
+  const rows = [
+    ...Object.entries(st.byRegion).map(([id, v]) => [REGIONS.find(r => r.id === id).name, v]),
+    ...Object.entries(st.others).map(([n, v]) => [n + '（図なし）', v]),
+  ].sort((a, b) => b[1] - a[1]);
+  const top = rows.length ? rows[0][1] : 0;
+  return `<div class="card">
+    <div class="card-title"><span>部位マップ</span><span class="sub">${fmtDate(start)}〜</span></div>
+    <div class="seg small" style="box-shadow:none;background:var(--soft)">${MAP_RANGES.map(([k, n]) => `<button class="${G.mapRange === k ? 'on' : ''}" data-act="mapRange" data-id="${k}">${n}</button>`).join('')}</div>
+    <div class="seg small" style="box-shadow:none;background:var(--soft)">${[['f', '前面'], ['b', '背面']].map(([k, n]) => `<button class="${G.mapView === k ? 'on' : ''}" data-act="mapView" data-id="${k}">${n}</button>`).join('')}</div>
+    ${st.total ? bodySvg(G.mapView, st) : '<div class="empty">この期間の筋トレ記録はありません</div>'}
+    ${st.total ? `<div class="sub" style="margin:4px 0 8px">色が濃いほど多くトレーニングした部位です。割合はセット数で計算（主な部位=1セット、サブ部位=${SUB_WEIGHT}セット）</div>
+    ${rows.map(([n, v]) => `<div class="hbar wide"><span>${esc(n)}</span>
+      <div class="track"><div class="fill" style="width:${(v / top * 100).toFixed(1)}%;background:#e5484d"></div></div>
+      <span class="v">${fmtN(v)} <span class="sub">${Math.round(v / st.total * 100)}%</span></span></div>`).join('')}` : ''}
+    ${st.cardioN ? `<div class="sub" style="margin-top:10px">🏃 有酸素: ${st.cardioN}回 ・ ${fmtN(st.cardioDist, 2)}km ・ ${fmtN(st.cardioTimeSum, 0)}分</div>` : ''}
+  </div>`;
+}
+
 function renderGraph() {
   const G = ui.graph, end = today(), start = rangeStart(G.range);
   const logs = data.logs.filter(l => l.date >= start && l.date <= end);
@@ -629,6 +743,7 @@ function renderGraph() {
 
   return `
   <h2 class="page">グラフ</h2>
+  ${renderBodyMap()}
   <div class="seg small">${RANGES.map(([k, n]) => `<button class="${G.range === k ? 'on' : ''}" data-act="gRange" data-id="${k}">${n}</button>`).join('')}</div>
   <div class="seg small">${METRICS.map(([k, n]) => `<button class="${G.metric === k ? 'on' : ''}" data-act="gMetric" data-id="${k}">${n}</button>`).join('')}</div>
   <div class="seg small">${[['group', '大分類（胸・背中…）'], ['part', '筋肉別（細かく）']].map(([k, n]) => `<button class="${G.by === k ? 'on' : ''}" data-act="gBy" data-id="${k}">${n}</button>`).join('')}</div>
@@ -1010,6 +1125,8 @@ const actions = {
   gotoDate: el => { ui.date = el.dataset.date; ui.tab = 'record'; render(); scrollTo(0, 0); },
   gRange: el => { ui.graph.range = el.dataset.id; render(); },
   gMetric: el => { ui.graph.metric = el.dataset.id; render(); },
+  mapRange: el => { ui.graph.mapRange = el.dataset.id; render(); },
+  mapView: el => { ui.graph.mapView = el.dataset.id; render(); },
   gBy: el => { ui.graph.by = el.dataset.id; ui.graph.part = null; render(); },
   gPart: el => { ui.graph.part = ui.graph.part === el.dataset.id ? null : el.dataset.id; render(); },
   closeSheet: () => closeSheet(),
