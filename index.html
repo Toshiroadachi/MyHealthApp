@@ -817,6 +817,10 @@ function renderSettings() {
     </div>
   </div>
   <div class="card">
+    <div class="card-title"><span>ほかのアプリ</span></div>
+    <a class="btn block" style="text-decoration:none;color:inherit" href="ab-timer/">⏱ 腹筋タイマー（20秒・10秒 × 7種目）</a>
+  </div>
+  <div class="card">
     <div class="card-title"><span>データ</span></div>
     <button class="btn block danger" data-act="wipe">すべてのデータを削除</button>
     <div class="sub" style="margin-top:10px">データはサーバーには送信されず、この端末内（ブラウザのローカルストレージ）に保存されます。ホーム画面に追加して使うと便利です。</div>
@@ -1287,6 +1291,18 @@ document.addEventListener('change', e => {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
 render();
+// 他のアプリ（腹筋タイマーなど）から「#add=メニュー名」で開かれたら、そのメニューの記録画面を出す
+function openFromHash() {
+  const m = location.hash.match(/^#add=(.+)$/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  const menu = data.menus.find(x => x.name === decodeURIComponent(m[1]));
+  if (!menu) return;
+  ui.tab = 'record'; ui.date = today(); render();
+  actions.openEntry({ dataset: { id: menu.id } });
+}
+openFromHash();
+window.addEventListener('hashchange', openFromHash);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
