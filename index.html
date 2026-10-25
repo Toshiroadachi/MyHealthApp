@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2f4f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="筋トレ記録">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>筋トレ記録</title>
+<style>
+:root{
+  --bg:#f2f4f7;--card:#fff;--text:#1c1f26;--sub:#6b7280;--line:#e5e7eb;--soft:#eef1f5;
+  --accent:#4f8ef7;--accent-ink:#fff;--green:#22a861;--danger:#e5484d;
+  --radius:18px;--shadow:0 1px 2px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0f1115;--card:#1a1d23;--text:#eef0f3;--sub:#9aa1ad;--line:#2a2f37;--soft:#242830;--shadow:none}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;font-size:16px;color:var(--text)}
+#app{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 96px)}
+.sub{color:var(--sub);font-size:13px}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+.card-title{font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+h2.page{font-size:20px;margin:6px 0 14px}
+
+/* top bar */
+.topbar{display:flex;align-items:center;gap:8px;margin:4px 0 14px}
+.topbar .nav{width:44px;height:44px;border-radius:14px;background:var(--card);font-size:22px;display:grid;place-items:center;box-shadow:var(--shadow)}
+.datebtn{flex:1;position:relative;text-align:center;font-weight:800;font-size:19px;padding:8px 0}
+.datebtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;border:0}
+.todaylink{display:block;font-size:12px;font-weight:600;color:var(--accent)}
+
+/* stat cards */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.stat{margin:0}
+.stat .row{display:flex;justify-content:space-between;color:var(--sub);font-size:13px;font-weight:600}
+.big{font-size:38px;font-weight:900;letter-spacing:-.5px;line-height:1.15;margin:4px 0}
+.big small{font-size:14px;font-weight:600;color:var(--sub);margin-left:4px}
+.dots{display:flex;flex-wrap:wrap;gap:4px;min-height:20px}
+
+/* segmented */
+.seg{display:flex;gap:4px;background:var(--card);border-radius:16px;padding:5px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;box-shadow:var(--shadow)}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:1 0 auto;min-width:56px;padding:10px 12px;border-radius:12px;font-weight:700;color:var(--sub);white-space:nowrap}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.seg.small button{padding:7px 10px;font-size:13px;min-width:0}
+
+.sechead{display:flex;justify-content:space-between;align-items:center;margin:18px 2px 10px;font-weight:700;color:var(--sub)}
+.sechead button{color:var(--accent);font-weight:700}
+.search{width:100%;padding:13px 14px 13px 40px;border:1.5px solid var(--line);border-radius:16px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%239aa1ad' stroke-width='2'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='m13 13 4 4'/%3E%3C/svg%3E") no-repeat 14px center;margin-bottom:12px;outline:none}
+.search:focus{border-color:var(--accent)}
+
+/* menu chips */
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.chip{background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:11px 14px;text-align:left;display:flex;flex-direction:column;gap:2px;transition:transform .08s}
+.chip:active{transform:scale(.97);border-color:var(--accent)}
+.cname{font-weight:700;font-size:16px}
+.cparts{font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:2px 8px}
+.cparts i,.ptag::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px;vertical-align:0}
+.clast{font-size:12px;color:var(--sub);opacity:.85}
+.ptag{display:inline-flex;align-items:center;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--sub);white-space:nowrap}
+.ptag::before{background:var(--c)}
+.ptag.main{color:var(--text);font-weight:700}
+
+/* log list */
+.logitem{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border-radius:16px;padding:12px 14px;margin-bottom:8px;width:100%;text-align:left;box-shadow:var(--shadow)}
+.logitem .nums{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.logitem .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.empty{color:var(--sub);text-align:center;padding:22px 10px;font-size:14px}
+
+/* bottom nav */
+.tabbar{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  display:flex;justify-content:space-around;padding:6px 8px calc(env(safe-area-inset-bottom) + 6px);z-index:10}
+.tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;font-weight:700;color:var(--sub);padding:4px 0;position:relative}
+.tabbar button span{font-size:24px;line-height:1.2;filter:grayscale(1);opacity:.75}
+.tabbar button.on{color:var(--accent)}
+.tabbar button.on span{filter:none;opacity:1}
+.badge::after{content:"";position:absolute;top:4px;right:calc(50% - 18px);width:9px;height:9px;border-radius:50%;background:var(--danger)}
+
+/* sheet */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-width:560px;margin:0 auto;background:var(--bg);border-radius:22px 22px 0 0;
+  padding:10px 16px calc(env(safe-area-inset-bottom) + 16px);max-height:90vh;overflow-y:auto;transform:translateY(105%);visibility:hidden;transition:transform .25s ease,visibility .25s}
+.sheet.open{transform:none;visibility:visible}
+.grip{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.sheet-title{font-size:20px;font-weight:800;margin-bottom:4px}
+.field{background:var(--card);border-radius:16px;padding:10px 12px;margin-top:10px}
+.flabel{font-size:13px;font-weight:700;color:var(--sub);margin:14px 2px 6px;display:block}
+.field .flabel{margin:0 0 6px}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper>button{width:52px;height:52px;border-radius:14px;background:var(--soft);font-size:26px;font-weight:700;flex:none}
+.stepper>button:active{background:var(--accent);color:#fff}
+.sval{flex:1;display:flex;align-items:baseline;justify-content:center;gap:4px}
+.sval input{width:100%;max-width:140px;text-align:center;font-size:30px;font-weight:900;border:0;background:none;outline:none;padding:0;-moz-appearance:textfield}
+.sval input::-webkit-inner-spin-button{-webkit-appearance:none}
+.sval span{color:var(--sub);font-weight:600}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.quick button{padding:6px 12px;border-radius:99px;background:var(--soft);font-weight:700;font-size:14px}
+.input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);outline:none}
+.input:focus{border-color:var(--accent)}
+.actions{display:flex;gap:10px;margin-top:18px}
+.btn{flex:1;padding:14px;border-radius:14px;background:var(--card);font-weight:800;text-align:center;border:1.5px solid var(--line)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--danger)}
+.btn.block{display:block;width:100%;margin-top:8px}
+.link{color:var(--accent);font-weight:700;padding:6px 2px}
+.pick{display:flex;flex-wrap:wrap;gap:8px}
+.pchip{padding:8px 14px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);font-weight:700;display:inline-flex;align-items:center;gap:6px}
+.pchip::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--c)}
+.pchip.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 18%,var(--card))}
+.mrow{display:flex;align-items:center;gap:6px;background:var(--card);border-radius:14px;padding:8px 8px 8px 14px;margin-bottom:6px}
+.mrow .mmain{flex:1;text-align:left;min-width:0}
+.mrow .mmain b{display:block}
+.icon{width:36px;height:36px;border-radius:10px;background:var(--soft);font-size:15px;flex:none}
+.colors{display:flex;flex-wrap:wrap;gap:10px}
+.colors button{width:34px;height:34px;border-radius:50%;background:var(--c);border:3px solid transparent}
+.colors button.on{border-color:var(--text)}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid var(--line);width:100%;text-align:left;gap:10px}
+.srow:first-of-type{border-top:0}
+.notice{background:color-mix(in srgb,var(--danger) 12%,var(--card));border-radius:14px;padding:10px 12px;font-size:13px;margin-bottom:10px}
+
+/* calendar */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.calhead b{font-size:17px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cal .wd{font-size:11px;color:var(--sub);font-weight:700;padding-bottom:2px}
+.cal .d{aspect-ratio:1/1.05;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5px;font-size:14px;font-weight:600}
+.cal .d.has{background:var(--soft)}
+.cal .d.today{outline:2px solid var(--accent)}
+.cal .d .dd{display:flex;gap:2px;margin-top:3px;flex-wrap:wrap;justify-content:center;max-width:30px}
+.cal .d .dd i{width:6px;height:6px;border-radius:50%}
+.dayhead{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;gap:8px}
+.dayhead b{font-size:16px}
+.dline{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.dline:first-of-type{border-top:0}
+.dline .nums{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* charts */
+.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .ax{fill:var(--sub);font-size:10px}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.legend button{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--soft);display:inline-flex;align-items:center;gap:5px;font-weight:600}
+.legend button i{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.legend button.off{opacity:.35}
+.hbar{display:grid;grid-template-columns:64px 1fr auto;gap:8px;align-items:center;font-size:13px;margin:7px 0}
+.hbar .track{height:14px;border-radius:7px;background:var(--soft);overflow:hidden}
+.hbar .fill{height:100%;border-radius:7px}
+.hbar .v{font-variant-numeric:tabular-nums;font-weight:700;min-width:70px;text-align:right}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.kpis div{background:var(--soft);border-radius:12px;padding:8px 4px}
+.kpis b{display:block;font-size:20px}
+.select{width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);margin-bottom:10px}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin:-4px 2px 12px}
+.check input{width:18px;height:18px}
+
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translate(-50%,20px);background:#1c1f26;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;font-weight:600;
+  opacity:0;pointer-events:none;transition:all .2s;z-index:30;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="tabbar" id="tabbar"></nav>
+<div class="overlay" id="overlay" data-act="closeSheet"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept=".json,.csv,application/json,text/csv,text/plain" hidden>
+
+<script>
+'use strict';
+/* ========== utils ========== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const today = () => ymd(new Date());
+const WD = '日月火水木金土';
+const fmtDate = s => { const d = parseYmd(s); return `${d.getMonth()+1}月${d.getDate()}日 (${WD[d.getDay()]})`; };
+const fmtN = n => (Math.round(n*10)/10).toLocaleString('ja-JP');
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const daysBetween = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
+
+/* ========== data ========== */
+const STORE_KEY = 'training-log-v1';
+const PALETTE = ['#e5484d','#4f8ef7','#f5a524','#8e4ec6','#22a861','#12a594','#e93d82','#d6730f','#3e63dd','#7c8594'];
+const GRAY = '#9aa1ad';
+
+function defaultData() {
+  const parts = ['胸','背中','肩','腕','脚','腹','全身'].map((name, i) => ({ id: 'p'+(i+1), name, color: PALETTE[i] }));
+  const P = n => parts.find(p => p.name === n).id;
+  const menus = [
+    ['ベンチプレス', ['胸','腕','肩']], ['ダンベルフライ', ['胸']], ['腕立て伏せ', ['胸','腕']],
+    ['ラットプルダウン', ['背中','腕']], ['懸垂', ['背中','腕']], ['デッドリフト', ['背中','脚']],
+    ['ショルダープレス', ['肩','腕']], ['サイドレイズ', ['肩']], ['アームカール', ['腕']],
+    ['フレンチプレス', ['腕']], ['スクワット', ['脚','腹']], ['レッグプレス', ['脚']],
+    ['クランチ', ['腹']], ['レッグレイズ', ['腹']],
+  ].map(([name, ps], i) => ({ id: 'm'+(i+1), name, partIds: ps.map(P) }));
+  return { version: 1, parts, menus, logs: [], settings: { weightStep: 2.5, includeSub: false, lastBackup: null } };
+}
+function normLog(l) {
+  return {
+    id: String(l.id), date: l.date, menuId: String(l.menuId || ''), menuName: String(l.menuName || ''),
+    partNames: Array.isArray(l.partNames) ? l.partNames.map(String) : [],
+    weight: Math.max(0, +l.weight || 0), reps: Math.max(0, +l.reps || 0), sets: Math.max(0, +l.sets || 0),
+    memo: String(l.memo || ''), createdAt: +l.createdAt || Date.now(),
+  };
+}
+function normalize(d) {
+  const def = defaultData();
+  if (!d || typeof d !== 'object') return def;
+  return {
+    version: 1,
+    parts: Array.isArray(d.parts) ? d.parts.filter(p => p && p.id && p.name)
+      .map((p, i) => ({ id: String(p.id), name: String(p.name), color: p.color || PALETTE[i % PALETTE.length] })) : def.parts,
+    menus: Array.isArray(d.menus) ? d.menus.filter(m => m && m.id && m.name)
+      .map(m => ({ id: String(m.id), name: String(m.name), partIds: Array.isArray(m.partIds) ? m.partIds.map(String) : [] })) : def.menus,
+    logs: Array.isArray(d.logs) ? d.logs.filter(l => l && l.id && /^\d{4}-\d{2}-\d{2}$/.test(l.date)).map(normLog) : [],
+    settings: Object.assign({}, def.settings, d.settings || {}),
+  };
+}
+function load() {
+  try { const s = localStorage.getItem(STORE_KEY); if (s) return normalize(JSON.parse(s)); }
+  catch (e) { console.error(e); }
+  return defaultData();
+}
+let data = load();
+
+const partById = id => data.parts.find(p => p.id === id);
+const menuById = id => data.menus.find(m => m.id === id);
+const menuParts = m => m.partIds.map(partById).filter(Boolean);
+function logParts(l) {
+  const m = menuById(l.menuId);
+  if (m) return menuParts(m);
+  return l.partNames.map(n => data.parts.find(p => p.name === n) || { id: 'x:'+n, name: n, color: GRAY });
+}
+const logName = l => { const m = menuById(l.menuId); return m ? m.name : l.menuName; };
+const volume = l => l.weight * l.reps * l.sets;
+
+// 履歴にメニュー名・部位名のスナップショットを持たせる（メニュー削除後も履歴が読めるように）
+function snapshot(l) {
+  const m = menuById(l.menuId);
+  if (m) { l.menuName = m.name; l.partNames = menuParts(m).map(p => p.name); }
+}
+function save() {
+  data.logs.forEach(snapshot);
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+  catch (e) { toast('保存に失敗しました: ' + e.message); }
+}
+const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
+function lastByMenu() {
+  const map = {};
+  for (const l of data.logs) {
+    const c = map[l.menuId];
+    if (!c || l.date > c.date || (l.date === c.date && l.createdAt > c.createdAt)) map[l.menuId] = l;
+  }
+  return map;
+}
+const setText = l => `${l.weight ? fmtN(l.weight) + 'kg × ' : '自重 × '}${fmtN(l.reps)}回 × ${fmtN(l.sets)}set`;
+const partTags = ps => ps.map((p, i) => `<span class="ptag${i === 0 ? ' main' : ''}" style="--c:${p.color}">${esc(p.name)}</span>`).join('');
+
+/* ========== ui state ========== */
+const ui = {
+  tab: 'record', date: today(), partFilter: 'all', search: '',
+  histMonth: today().slice(0, 7), histPart: 'all',
+  graph: { range: '3m', metric: 'sets', part: null, menuId: '' },
+  sheet: null, pending: null,
+};
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+/* ========== render: record ========== */
+function renderRecord() {
+  const d = ui.date, isToday = d === today();
+  const logs = sortLogs(data.logs.filter(l => l.date === d));
+  const sets = logs.reduce((a, l) => a + l.sets, 0);
+  const reps = logs.reduce((a, l) => a + l.reps * l.sets, 0);
+  const vol = logs.reduce((a, l) => a + volume(l), 0);
+  const dayParts = [];
+  logs.forEach(l => { const p = logParts(l)[0]; if (p && !dayParts.some(x => x.id === p.id)) dayParts.push(p); });
+  return `
+  <div class="topbar">
+    <button class="nav" data-act="shiftDay" data-d="-1" aria-label="前の日">‹</button>
+    <label class="datebtn">${fmtDate(d)}${isToday ? ' · 今日' : ''}
+      ${isToday ? '' : '<span class="todaylink">タップで日付変更</span>'}
+      <input type="date" value="${d}" data-change="setDate" aria-label="日付を選択">
+    </label>
+    <button class="nav" data-act="shiftDay" data-d="1" aria-label="次の日">›</button>
+  </div>
+  ${isToday ? '' : '<button class="btn block" style="margin:-6px 0 12px" data-act="goToday">今日に戻る</button>'}
+  <div class="stats">
+    <div class="card stat"><div class="row"><span>セット数</span><span>${logs.length}種目</span></div>
+      <div class="big">${fmtN(sets)}<small>set</small></div><div class="sub">総回数 <b>${fmtN(reps)}</b> 回</div></div>
+    <div class="card stat"><div class="row"><span>ボリューム</span></div>
+      <div class="big">${vol >= 10000 ? fmtN(vol/1000) + '<small>t</small>' : fmtN(vol) + '<small>kg</small>'}</div>
+      <div class="dots">${dayParts.length ? partTags(dayParts.map(p => p)).replace(/ main/g, '') : '<span class="sub">まだ記録なし</span>'}</div></div>
+  </div>
+  <div class="seg">${partFilterButtons(ui.partFilter, 'filterPart')}</div>
+  <div class="sechead"><span>タップで追加</span><button data-act="openMenuManager">✏️ 編集</button></div>
+  <input class="search" type="search" placeholder="メニューをさがす" value="${esc(ui.search)}" data-input="search">
+  <div class="chips" id="chips">${renderChips()}</div>
+  <div class="sechead"><span>${fmtDate(d)} の記録</span>${logs.length ? '<span class="sub">タップで修正</span>' : ''}</div>
+  ${logs.length ? logs.map(l => `
+    <button class="logitem" data-act="editEntry" data-id="${l.id}">
+      <div><b>${esc(logName(l))}</b><div class="tags">${partTags(logParts(l))}</div>${l.memo ? `<div class="sub">${esc(l.memo)}</div>` : ''}</div>
+      <div class="nums">${setText(l)}</div>
+    </button>`).join('') : '<div class="empty">上のメニューをタップして記録しましょう 💪</div>'}
+  `;
+}
+function partFilterButtons(cur, act) {
+  return `<button class="${cur === 'all' ? 'on' : ''}" data-act="${act}" data-id="all">すべて</button>` +
+    data.parts.map(p => `<button class="${cur === p.id ? 'on' : ''}" data-act="${act}" data-id="${p.id}">${esc(p.name)}</button>`).join('');
+}
+function renderChips() {
+  const q = ui.search.trim().toLowerCase();
+  const last = lastByMenu();
+  const list = data.menus.filter(m =>
+    (ui.partFilter === 'all' || m.partIds.includes(ui.partFilter)) &&
+    (!q || m.name.toLowerCase().includes(q) || menuParts(m).some(p => p.name.toLowerCase().includes(q))));
+  if (!list.length) return '<div class="empty" style="grid-column:1/-1">該当するメニューがありません。「✏️ 編集」から追加できます</div>';
+  return list.map(m => {
+    const l = last[m.id];
+    return `<button class="chip" data-act="openEntry" data-id="${m.id}">
+      <span class="cname">${esc(m.name)}</span>
+      <span class="cparts">${menuParts(m).map(p => `<span><i style="background:${p.color}"></i>${esc(p.name)}</span>`).join('')}</span>
+      ${l ? `<span class="clast">前回 ${setText(l)}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+/* ========== render: history ========== */
+function renderHistory() {
+  const [y, m] = ui.histMonth.split('-').map(Number);
+  const first = new Date(y, m-1, 1), nDays = new Date(y, m, 0).getDate(), startW = first.getDay();
+  const match = l => ui.histPart === 'all' || logParts(l).some(p => p.id === ui.histPart);
+  const byDate = {};
+  data.logs.filter(l => l.date.startsWith(ui.histMonth) && match(l)).forEach(l => (byDate[l.date] ||= []).push(l));
+  const t = today();
+  let cells = [...WD].map(w => `<div class="wd">${w}</div>`).join('');
+  for (let i = 0; i < startW; i++) cells += '<div></div>';
+  for (let d = 1; d <= nDays; d++) {
+    const ds = `${ui.histMonth}-${pad(d)}`, ls = byDate[ds] || [];
+    const colors = [...new Set(ls.map(l => (logParts(l)[0] || { color: GRAY }).color))].slice(0, 4);
+    cells += `<button class="d${ls.length ? ' has' : ''}${ds === t ? ' today' : ''}" data-act="gotoDate" data-date="${ds}">${d}
+      <span class="dd">${colors.map(c => `<i style="background:${c}"></i>`).join('')}</span></button>`;
+  }
+  const dates = Object.keys(byDate).sort().reverse();
+  const totalSets = dates.reduce((a, ds) => a + byDate[ds].reduce((b, l) => b + l.sets, 0), 0);
+  return `
+  <h2 class="page">履歴</h2>
+  <div class="seg small">${partFilterButtons(ui.histPart, 'histPart')}</div>
+  <div class="card">
+    <div class="calhead">
+      <button class="icon" data-act="shiftMonth" data-d="-1" aria-label="前の月">‹</button>
+      <b>${y}年${m}月</b>
+      <button class="icon" data-act="shiftMonth" data-d="1" aria-label="次の月">›</button>
+    </div>
+    <div class="cal">${cells}</div>
+    <div class="sub" style="margin-top:10px;text-align:center">トレーニング日数 <b>${dates.length}</b> 日 ・ 合計 <b>${fmtN(totalSets)}</b> セット</div>
+  </div>
+  ${dates.length ? dates.map(ds => {
+    const ls = sortLogs(byDate[ds]);
+    const ps = []; ls.forEach(l => logParts(l).slice(0, 1).forEach(p => { if (!ps.some(x => x.id === p.id)) ps.push(p); }));
+    return `<div class="card">
+      <button class="dayhead" data-act="gotoDate" data-date="${ds}">
+        <b>${fmtDate(ds)}</b><span class="sub">${ls.reduce((a, l) => a + l.sets, 0)}セット ›</span></button>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 4px">${ps.map(p => `<span class="ptag main" style="--c:${p.color}">${esc(p.name)}</span>`).join('')}</div>
+      ${ls.map(l => `<div class="dline"><span>${esc(logName(l))}</span><span class="nums">${setText(l)}</span></div>`).join('')}
+    </div>`;
+  }).join('') : '<div class="empty">この月の記録はありません</div>'}
+  `;
+}
+
+/* ========== render: graph ========== */
+const RANGES = [['1m', '1ヶ月'], ['3m', '3ヶ月'], ['6m', '6ヶ月'], ['1y', '1年'], ['all', '全期間']];
+const METRICS = [['sets', 'セット数', 'セット'], ['reps', '総回数', '回'], ['volume', 'ボリューム', 'kg']];
+function rangeStart(r) {
+  const t = today();
+  if (r === 'all') return data.logs.reduce((a, l) => l.date < a ? l.date : a, t);
+  return addDays(t, -({ '1m': 29, '3m': 90, '6m': 181, '1y': 364 }[r]));
+}
+function bucketUnit(start, end) {
+  const span = daysBetween(start, end);
+  return span <= 45 ? 'day' : span <= 200 ? 'week' : 'month';
+}
+function bucketKey(ds, unit) {
+  if (unit === 'day') return ds;
+  if (unit === 'month') return ds.slice(0, 7);
+  const d = parseYmd(ds); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); // 月曜始まり
+}
+function buckets(start, end, unit) {
+  const keys = []; let cur = start;
+  while (cur <= end) { const k = bucketKey(cur, unit); if (keys[keys.length-1] !== k) keys.push(k); cur = addDays(cur, 1); }
+  const label = k => unit === 'month' ? `${+k.slice(5, 7)}月` : `${+k.slice(5, 7)}/${+k.slice(8, 10)}`;
+  return keys.map(k => ({ key: k, label: label(k) }));
+}
+const metricVal = (l, m) => m === 'sets' ? l.sets : m === 'reps' ? l.reps * l.sets : volume(l);
+function targetParts(l) {
+  const ps = logParts(l);
+  if (!ps.length) return [{ id: 'none', name: '未分類', color: GRAY }];
+  return data.settings.includeSub ? ps : ps.slice(0, 1);
+}
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e;
+}
+const shortN = n => n >= 1000 ? (Math.round(n / 100) / 10) + 'k' : fmtN(n);
+
+function svgBars(labels, series) {
+  const W = 340, H = 190, L = 34, R = 6, T = 8, B = 22, cw = W-L-R, ch = H-T-B, n = labels.length;
+  const totals = labels.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
+  const max = niceMax(Math.max(0, ...totals));
+  let g = '';
+  for (let k = 0; k <= 4; k++) {
+    const y = T + ch - ch * k / 4;
+    g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" class="grid"/><text x="${L-4}" y="${y+3}" class="ax" text-anchor="end">${shortN(max * k / 4)}</text>`;
+  }
+  const bw = cw / n, gap = Math.min(bw * 0.3, 4);
+  labels.forEach((lab, i) => {
+    let y0 = T + ch; const x = L + i * bw + gap / 2;
+    for (const s of series) {
+      const v = s.values[i]; if (!v) continue;
+      const h = ch * v / max; y0 -= h;
+      g += `<rect x="${x.toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(1, bw-gap).toFixed(1)}" height="${h.toFixed(1)}" fill="${s.color}" rx="${bw > 8 ? 2 : 0}"><title>${esc(lab)} ${esc(s.name)}: ${fmtN(v)}</title></rect>`;
+    }
+  });
+  const step = Math.ceil(n / 6);
+  labels.forEach((lab, i) => { if (i % step === 0) g += `<text x="${L + i*bw + bw/2}" y="${H-6}" class="ax" text-anchor="middle">${esc(lab)}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">${g}</svg>`;
+}
+function svgLine(points, start, end, color) {
+  const W = 340, H = 180, L = 34, R = 10, T = 10, B = 22, cw = W-L-R, ch = H-T-B;
+  const vs = points.map(p => p.v);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  if (lo === hi) { lo = Math.max(0, lo - 5); hi = hi + 5; } else { const pd = (hi - lo) * 0.15; lo = Math.max(0, lo - pd); hi += pd; }
+  const span = Math.max(1, daysBetween(start, end));
+  const X = ds => L + cw * daysBetween(start, ds) / span, Y = v => T + ch - ch * (v - lo) / (hi - lo);
+  let g = '';
+  for (let k = 0; k <= 4; k++) {
+    const v = lo + (hi - lo) * k / 4, y = Y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" class="grid"/><text x="${L-4}" y="${y+3}" class="ax" text-anchor="end">${shortN(v)}</text>`;
+  }
+  g += `<polyline fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" points="${points.map(p => `${X(p.date).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ')}"/>`;
+  g += points.map(p => `<circle cx="${X(p.date).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.5" fill="${color}"><title>${p.date}: ${fmtN(p.v)}</title></circle>`).join('');
+  const lbl = ds => `${+ds.slice(5, 7)}/${+ds.slice(8, 10)}`;
+  g += `<text x="${L}" y="${H-6}" class="ax">${lbl(start)}</text><text x="${W-R}" y="${H-6}" class="ax" text-anchor="end">${lbl(end)}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">${g}</svg>`;
+}
+
+function renderGraph() {
+  const G = ui.graph, end = today(), start = rangeStart(G.range);
+  const logs = data.logs.filter(l => l.date >= start && l.date <= end);
+  const [, mLabel, mUnit] = METRICS.find(m => m[0] === G.metric);
+  const unit = bucketUnit(start, end), bs = buckets(start, end, unit), idx = {};
+  bs.forEach((b, i) => idx[b.key] = i);
+
+  // 部位ごとの系列
+  const seriesMap = new Map();
+  for (const p of data.parts) seriesMap.set(p.id, { id: p.id, name: p.name, color: p.color, values: bs.map(() => 0), total: 0 });
+  for (const l of logs) {
+    const i = idx[bucketKey(l.date, unit)], v = metricVal(l, G.metric);
+    for (const p of targetParts(l)) {
+      if (!seriesMap.has(p.id)) seriesMap.set(p.id, { id: p.id, name: p.name, color: p.color, values: bs.map(() => 0), total: 0 });
+      const s = seriesMap.get(p.id); s.values[i] += v; s.total += v;
+    }
+  }
+  const allSeries = [...seriesMap.values()];
+  const used = allSeries.filter(s => s.total > 0);
+  const shown = G.part ? used.filter(s => s.id === G.part) : used;
+  const grand = used.reduce((a, s) => a + s.total, 0);
+  const days = new Set(logs.map(l => l.date)).size;
+  const weeks = Math.max(1, (daysBetween(start, end) + 1) / 7);
+
+  // 種目別
+  const menuOpts = [...new Set(sortLogs([...data.logs]).reverse().map(l => l.menuId))];
+  if (!G.menuId || !menuOpts.includes(G.menuId)) G.menuId = menuOpts[0] || '';
+  let menuCard = '<div class="empty">記録がありません</div>';
+  if (G.menuId) {
+    const ml = logs.filter(l => l.menuId === G.menuId);
+    const useW = ml.some(l => l.weight > 0);
+    const byDay = {};
+    ml.forEach(l => { const v = useW ? l.weight : l.reps; byDay[l.date] = Math.max(byDay[l.date] || 0, v); });
+    const pts = Object.keys(byDay).sort().map(d => ({ date: d, v: byDay[d] }));
+    const allM = data.logs.filter(l => l.menuId === G.menuId);
+    const best = allM.reduce((a, l) => Math.max(a, useW ? l.weight : l.reps), 0);
+    const rm = allM.reduce((a, l) => Math.max(a, l.weight * (1 + l.reps / 30)), 0);
+    const anyLog = allM[0];
+    const color = (anyLog && logParts(anyLog)[0] || { color: 'var(--accent)' }).color;
+    menuCard = `
+      <div class="kpis" style="margin-bottom:10px">
+        <div><span class="sub">自己ベスト</span><b>${fmtN(best)}</b><span class="sub">${useW ? 'kg' : '回'}</span></div>
+        <div><span class="sub">推定1RM</span><b>${rm ? fmtN(rm) : '-'}</b><span class="sub">kg</span></div>
+        <div><span class="sub">期間内</span><b>${new Set(ml.map(l => l.date)).size}</b><span class="sub">回実施</span></div>
+      </div>
+      <div class="sub" style="margin-bottom:4px">日ごとの最大${useW ? '重量 (kg)' : '回数'}</div>
+      ${pts.length ? svgLine(pts, start, end, color) : '<div class="empty">この期間の記録はありません</div>'}`;
+  }
+
+  return `
+  <h2 class="page">グラフ</h2>
+  <div class="seg small">${RANGES.map(([k, n]) => `<button class="${G.range === k ? 'on' : ''}" data-act="gRange" data-id="${k}">${n}</button>`).join('')}</div>
+  <div class="seg small">${METRICS.map(([k, n]) => `<button class="${G.metric === k ? 'on' : ''}" data-act="gMetric" data-id="${k}">${n}</button>`).join('')}</div>
+  <label class="check"><input type="checkbox" data-change="includeSub" ${data.settings.includeSub ? 'checked' : ''}> サブ部位も集計に含める（OFF: 主な部位のみ）</label>
+  <div class="card">
+    <div class="kpis">
+      <div><span class="sub">トレ日数</span><b>${days}</b><span class="sub">日</span></div>
+      <div><span class="sub">週平均</span><b>${fmtN(days / weeks)}</b><span class="sub">日</span></div>
+      <div><span class="sub">${mLabel}</span><b>${shortN(grand)}</b><span class="sub">${mUnit}</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>部位別の推移</span><span class="sub">${unit === 'day' ? '日別' : unit === 'week' ? '週別' : '月別'} ・ ${mLabel}</span></div>
+    ${used.length ? svgBars(bs.map(b => b.label), shown) : '<div class="empty">この期間の記録はありません</div>'}
+    ${used.length ? `<div class="legend">${used.map(s => `<button class="${G.part && G.part !== s.id ? 'off' : ''}" style="--c:${s.color}" data-act="gPart" data-id="${s.id}"><i></i>${esc(s.name)}</button>`).join('')}</div>
+    <div class="sub" style="margin-top:6px">部位をタップするとその部位だけ表示します</div>` : ''}
+  </div>
+  <div class="card">
+    <div class="card-title"><span>部位別の合計</span><span class="sub">${mLabel}</span></div>
+    ${used.length ? [...used].sort((a, b) => b.total - a.total).map(s => `
+      <div class="hbar"><span>${esc(s.name)}</span>
+        <div class="track"><div class="fill" style="width:${(s.total / Math.max(...used.map(x => x.total)) * 100).toFixed(1)}%;background:${s.color}"></div></div>
+        <span class="v">${fmtN(s.total)} <span class="sub">${Math.round(s.total / grand * 100)}%</span></span></div>`).join('')
+      : '<div class="empty">この期間の記録はありません</div>'}
+  </div>
+  <div class="card">
+    <div class="card-title"><span>種目別の推移</span></div>
+    ${menuOpts.length ? `<select class="select" data-change="gMenu">${menuOpts.map(id => {
+      const l = data.logs.find(x => x.menuId === id);
+      return `<option value="${esc(id)}" ${id === G.menuId ? 'selected' : ''}>${esc(logName(l))}</option>`;
+    }).join('')}</select>` : ''}
+    ${menuCard}
+  </div>`;
+}
+
+/* ========== render: settings ========== */
+function backupStale() {
+  if (!data.logs.length) return false;
+  const lb = data.settings.lastBackup;
+  return !lb || (Date.now() - lb) > 14 * 86400000;
+}
+function renderSettings() {
+  const lb = data.settings.lastBackup;
+  const usedBy = id => data.menus.filter(m => m.partIds.includes(id)).length;
+  return `
+  <h2 class="page">設定</h2>
+  <div class="card">
+    <div class="card-title"><span>部位</span><button class="link" data-act="editPart" data-id="">＋ 追加</button></div>
+    ${data.parts.map(p => `<button class="srow" data-act="editPart" data-id="${p.id}">
+      <span><span class="ptag main" style="--c:${p.color}">${esc(p.name)}</span></span><span class="sub">${usedBy(p.id)}メニュー ›</span></button>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-title"><span>トレーニングメニュー</span><span class="sub">${data.menus.length}件</span></div>
+    <button class="btn block" data-act="openMenuManager">メニューの追加・編集・削除</button>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>重量の刻み（＋/− ボタン）</span></div>
+    <div class="seg small" style="margin:0;box-shadow:none;background:var(--soft)">${[0.5, 1, 1.25, 2.5, 5].map(v =>
+      `<button class="${data.settings.weightStep === v ? 'on' : ''}" data-act="setStep" data-v="${v}">${v}kg</button>`).join('')}</div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>バックアップと復元</span></div>
+    ${backupStale() ? '<div class="notice">⚠️ しばらくバックアップしていません。データはこの端末のブラウザ内にだけ保存されています。</div>' : ''}
+    <div class="sub" style="margin-bottom:6px">最終バックアップ: ${lb ? new Date(lb).toLocaleString('ja-JP') : 'なし'} ・ 記録 ${data.logs.length} 件</div>
+    <div class="actions" style="margin-top:6px">
+      <button class="btn" data-act="exportJson">JSONで保存</button>
+      <button class="btn" data-act="exportCsv">CSVで保存</button>
+    </div>
+    <button class="btn block primary" style="margin-top:10px" data-act="pickFile">ファイルから復元（JSON / CSV）</button>
+    <div class="sub" style="margin-top:10px;line-height:1.6">
+      ・JSON: 部位・メニュー・履歴・設定をすべて保存（完全な復元用）<br>
+      ・CSV: 履歴の一覧（Excel等で閲覧・編集可）。復元時、無いメニュー/部位は自動作成されます
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span>データ</span></div>
+    <button class="btn block danger" data-act="wipe">すべてのデータを削除</button>
+    <div class="sub" style="margin-top:10px">データはサーバーには送信されず、この端末内（ブラウザのローカルストレージ）に保存されます。ホーム画面に追加して使うと便利です。</div>
+  </div>`;
+}
+
+/* ========== render root ========== */
+const TABS = [['record', '🏋️', '記録'], ['history', '📅', '履歴'], ['graph', '📈', 'グラフ'], ['settings', '⚙️', '設定']];
+function render() {
+  const app = $('#app');
+  app.innerHTML = ui.tab === 'record' ? renderRecord() : ui.tab === 'history' ? renderHistory()
+    : ui.tab === 'graph' ? renderGraph() : renderSettings();
+  $('#tabbar').innerHTML = TABS.map(([k, ic, n]) =>
+    `<button class="${ui.tab === k ? 'on' : ''}${k === 'settings' && backupStale() ? ' badge' : ''}" data-act="tab" data-id="${k}"><span>${ic}</span>${n}</button>`).join('');
+}
+
+/* ========== sheets ========== */
+function openSheet(state) { ui.sheet = state; renderSheet(); $('#overlay').classList.add('open'); $('#sheet').classList.add('open'); }
+function closeSheet() { ui.sheet = null; $('#overlay').classList.remove('open'); $('#sheet').classList.remove('open'); }
+function renderSheet() {
+  const s = ui.sheet; if (!s) return;
+  const html = { entry: sheetEntry, menus: sheetMenus, menuEdit: sheetMenuEdit, partEdit: sheetPartEdit, restore: sheetRestore }[s.type]();
+  $('#sheet').innerHTML = '<div class="grip"></div>' + html;
+}
+const stepper = (f, label, unit, v) => `
+  <div class="field"><div class="flabel">${label}</div>
+    <div class="stepper">
+      <button data-act="step" data-f="${f}" data-d="-1" aria-label="${label}を減らす">−</button>
+      <div class="sval"><input id="f-${f}" type="number" inputmode="decimal" min="0" step="any" value="${v}"><span>${unit}</span></div>
+      <button data-act="step" data-f="${f}" data-d="1" aria-label="${label}を増やす">＋</button>
+    </div>
+    ${f === 'weight' ? '<div class="quick"><button data-act="setVal" data-f="weight" data-v="0">自重 (0kg)</button></div>' : ''}
+    ${f === 'reps' ? `<div class="quick">${[5, 8, 10, 12, 15, 20].map(n => `<button data-act="setVal" data-f="reps" data-v="${n}">${n}</button>`).join('')}</div>` : ''}
+    ${f === 'sets' ? `<div class="quick">${[1, 2, 3, 4, 5].map(n => `<button data-act="setVal" data-f="sets" data-v="${n}">${n}</button>`).join('')}</div>` : ''}
+  </div>`;
+function sheetEntry() {
+  const s = ui.sheet, log = s.logId ? data.logs.find(l => l.id === s.logId) : null;
+  const m = menuById(s.menuId);
+  const name = m ? m.name : log.menuName;
+  const ps = m ? menuParts(m) : logParts(log);
+  const v = s.values;
+  return `
+    <div class="sheet-title">${esc(name)}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">${partTags(ps)}</div>
+    <div class="sub" style="margin-top:4px">${fmtDate(log ? log.date : ui.date)}${s.prev ? ` ・ 前回 ${setText(s.prev)}` : ''}</div>
+    ${stepper('weight', '重量', 'kg', v.weight)}
+    ${stepper('reps', '回数', '回', v.reps)}
+    ${stepper('sets', 'セット数', 'set', v.sets)}
+    <input id="f-memo" class="input" style="margin-top:10px" placeholder="メモ（任意）" value="${esc(v.memo)}">
+    <div class="actions">
+      ${log ? '<button class="btn danger" data-act="deleteEntry">削除</button>' : '<button class="btn" data-act="closeSheet">キャンセル</button>'}
+      <button class="btn primary" data-act="saveEntry">${log ? '更新する' : '記録する'}</button>
+    </div>`;
+}
+function sheetMenus() {
+  return `
+    <div class="sheet-title">メニューの編集</div>
+    <div class="sub">タップで名前・部位を編集。↑↓で並び替え</div>
+    <button class="btn block primary" style="margin:12px 0" data-act="editMenu" data-id="">＋ 新しいメニューを追加</button>
+    ${data.menus.map((m, i) => `<div class="mrow">
+      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}</b>
+        <span style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">${partTags(menuParts(m)) || '<span class="sub">部位未設定</span>'}</span></button>
+      <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="-1" ${i === 0 ? 'disabled style="opacity:.3"' : ''} aria-label="上へ">↑</button>
+      <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="1" ${i === data.menus.length-1 ? 'disabled style="opacity:.3"' : ''} aria-label="下へ">↓</button>
+    </div>`).join('') || '<div class="empty">メニューがありません</div>'}
+    <button class="btn block" style="margin-top:12px" data-act="closeSheet">閉じる</button>`;
+}
+function sheetMenuEdit() {
+  const s = ui.sheet;
+  return `
+    <div class="sheet-title">${s.id ? 'メニューを編集' : 'メニューを追加'}</div>
+    <label class="flabel" for="m-name">メニュー名</label>
+    <input id="m-name" class="input" value="${esc(s.name)}" placeholder="例: インクラインベンチプレス">
+    <label class="flabel">主に鍛える部位（1つ）</label>
+    <div class="pick">${data.parts.map(p => `<button class="pchip ${s.main === p.id ? 'on' : ''}" style="--c:${p.color}" data-act="pickMain" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+    <label class="flabel">サブで鍛える部位（複数可）</label>
+    <div class="pick">${data.parts.filter(p => p.id !== s.main).map(p => `<button class="pchip ${s.subs.includes(p.id) ? 'on' : ''}" style="--c:${p.color}" data-act="pickSub" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+    <button class="link" style="margin-top:8px" data-act="quickAddPart">＋ 部位を新しく追加</button>
+    <div class="actions">
+      ${s.id ? '<button class="btn danger" data-act="deleteMenu">削除</button>' : ''}
+      <button class="btn" data-act="openMenuManager">戻る</button>
+      <button class="btn primary" data-act="saveMenu">保存</button>
+    </div>`;
+}
+function sheetPartEdit() {
+  const s = ui.sheet;
+  const n = s.id ? data.menus.filter(m => m.partIds.includes(s.id)).length : 0;
+  return `
+    <div class="sheet-title">${s.id ? '部位を編集' : '部位を追加'}</div>
+    <label class="flabel" for="p-name">部位名</label>
+    <input id="p-name" class="input" value="${esc(s.name)}" placeholder="例: お尻">
+    <label class="flabel">色</label>
+    <div class="colors">${PALETTE.map(c => `<button class="${s.color === c ? 'on' : ''}" style="--c:${c}" data-act="pickColor" data-v="${c}" aria-label="${c}"></button>`).join('')}</div>
+    ${s.id ? `<div class="sub" style="margin-top:12px">この部位を使っているメニュー: ${n}件</div>` : ''}
+    <div class="actions">
+      ${s.id ? '<button class="btn danger" data-act="deletePart">削除</button>' : ''}
+      <button class="btn" data-act="closeSheet">キャンセル</button>
+      <button class="btn primary" data-act="savePart">保存</button>
+    </div>`;
+}
+function sheetRestore() {
+  const p = ui.pending;
+  return `
+    <div class="sheet-title">データの復元</div>
+    <div class="card" style="margin-top:10px">
+      <div><b>${esc(p.fileName)}</b>（${p.kind.toUpperCase()}）</div>
+      <div class="sub">記録 ${p.logCount} 件${p.kind === 'json' ? ` ・ メニュー ${p.data.menus.length} 件 ・ 部位 ${p.data.parts.length} 件` : ''}</div>
+    </div>
+    <div class="sub" style="line-height:1.7">
+      <b>統合</b>: 今のデータを残したまま、ファイルの記録を追加します（同じ記録は重複しません）<br>
+      <b>置き換え</b>: ${p.kind === 'json' ? '今のデータをすべてファイルの内容に置き換えます' : '今の履歴を消して、ファイルの履歴に置き換えます（メニュー・部位は残ります）'}
+    </div>
+    <div class="actions">
+      <button class="btn" data-act="closeSheet">キャンセル</button>
+      <button class="btn" data-act="doRestore" data-mode="replace">置き換え</button>
+      <button class="btn primary" data-act="doRestore" data-mode="merge">統合</button>
+    </div>`;
+}
+function keepSheetInputs() {
+  const s = ui.sheet;
+  if (s?.type === 'menuEdit' && $('#m-name')) s.name = $('#m-name').value;
+  if (s?.type === 'partEdit' && $('#p-name')) s.name = $('#p-name').value;
+}
+
+/* ========== backup ========== */
+const CSV_HEAD = ['日付', 'メニュー', '主な部位', '部位', '重量(kg)', '回数', 'セット数', 'ボリューム(kg)', 'メモ', 'ID', 'メニューID', '登録日時'];
+const csvCell = v => { const s = String(v ?? ''); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+function toCsv() {
+  const rows = sortLogs([...data.logs]).map(l => {
+    const ps = logParts(l).map(p => p.name);
+    return [l.date, logName(l), ps[0] || '', ps.join('/'), l.weight, l.reps, l.sets, volume(l), l.memo, l.id, l.menuId, new Date(l.createdAt).toISOString()];
+  });
+  return '﻿' + [CSV_HEAD, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+}
+function parseCsv(text) {
+  text = text.replace(/^﻿/, '');
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+function normDate(s) {
+  const m = String(s).trim().match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  return m ? `${m[1]}-${pad(m[2])}-${pad(m[3])}` : null;
+}
+function csvToLogs(text) {
+  const rows = parseCsv(text);
+  if (rows.length < 1) throw new Error('CSVが空です');
+  const head = rows[0].map(h => h.trim());
+  const col = (...names) => head.findIndex(h => names.includes(h));
+  const c = {
+    date: col('日付', 'date'), menu: col('メニュー', 'menu'), main: col('主な部位', 'main_part'), parts: col('部位', 'parts'),
+    w: col('重量(kg)', '重量', 'weight'), r: col('回数', 'reps'), s: col('セット数', 'セット', 'sets'),
+    memo: col('メモ', 'memo'), id: col('ID', 'id'), at: col('登録日時', 'createdAt'),
+  };
+  if (c.date < 0 || c.menu < 0) throw new Error('「日付」「メニュー」の列が見つかりません');
+  const out = [];
+  rows.slice(1).forEach((r, i) => {
+    const date = normDate(r[c.date] || ''), menu = (r[c.menu] || '').trim();
+    if (!date || !menu) return;
+    let parts = c.parts >= 0 ? (r[c.parts] || '').split('/').map(x => x.trim()).filter(Boolean) : [];
+    const main = c.main >= 0 ? (r[c.main] || '').trim() : '';
+    if (main && !parts.includes(main)) parts.unshift(main);
+    out.push({
+      id: (c.id >= 0 && r[c.id]?.trim()) || 'csv' + uid() + i, date, menuName: menu, partNames: parts,
+      weight: +(r[c.w] || 0) || 0, reps: +(r[c.r] || 0) || 0, sets: +(r[c.s] || 0) || 0,
+      memo: c.memo >= 0 ? r[c.memo] || '' : '', createdAt: (c.at >= 0 && Date.parse(r[c.at])) || Date.now() + i,
+    });
+  });
+  return out;
+}
+// CSV由来の記録を取り込む（メニュー・部位は名前で照合し、無ければ作成）
+function applyCsvLogs(target, logs) {
+  const ids = new Set(target.logs.map(l => l.id)); let added = 0;
+  for (const raw of logs) {
+    if (ids.has(raw.id)) continue;
+    const pIds = raw.partNames.map(n => {
+      let p = target.parts.find(x => x.name === n);
+      if (!p) { p = { id: 'p' + uid(), name: n, color: PALETTE[target.parts.length % PALETTE.length] }; target.parts.push(p); }
+      return p.id;
+    });
+    let m = target.menus.find(x => x.name === raw.menuName);
+    if (!m) { m = { id: 'm' + uid(), name: raw.menuName, partIds: pIds }; target.menus.push(m); }
+    target.logs.push(normLog({ ...raw, menuId: m.id })); ids.add(raw.id); added++;
+  }
+  return added;
+}
+function mergeData(base, inc) {
+  const pmap = {}, mmap = {};
+  for (const p of inc.parts) {
+    const ex = base.parts.find(x => x.id === p.id) || base.parts.find(x => x.name === p.name);
+    if (ex) pmap[p.id] = ex.id; else { base.parts.push({ ...p }); pmap[p.id] = p.id; }
+  }
+  for (const m of inc.menus) {
+    const ex = base.menus.find(x => x.id === m.id) || base.menus.find(x => x.name === m.name);
+    if (ex) mmap[m.id] = ex.id;
+    else { base.menus.push({ ...m, partIds: m.partIds.map(id => pmap[id] || id).filter(id => base.parts.some(p => p.id === id)) }); mmap[m.id] = m.id; }
+  }
+  const ids = new Set(base.logs.map(l => l.id)); let added = 0;
+  for (const l of inc.logs) { if (ids.has(l.id)) continue; base.logs.push({ ...l, menuId: mmap[l.menuId] || l.menuId }); ids.add(l.id); added++; }
+  return added;
+}
+async function saveFile(name, text, type) {
+  const blob = new Blob([text], { type });
+  const file = new File([blob], name, { type });
+  if (matchMedia('(pointer:coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return true; }
+    catch (e) { if (e.name === 'AbortError') return false; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return true;
+}
+const stamp = () => today().replace(/-/g, '');
+async function doExport(kind) {
+  const ok = kind === 'json'
+    ? await saveFile(`training-backup-${stamp()}.json`, JSON.stringify({ app: 'training-log', exportedAt: new Date().toISOString(), ...data }, null, 2), 'application/json')
+    : await saveFile(`training-log-${stamp()}.csv`, toCsv(), 'text/csv');
+  if (ok) { data.settings.lastBackup = Date.now(); save(); render(); toast('バックアップを保存しました'); }
+}
+$('#fileInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const text = await f.text();
+    if (text.trim().startsWith('{')) {
+      const obj = JSON.parse(text);
+      if (!Array.isArray(obj.logs)) throw new Error('このアプリのバックアップ(JSON)ではありません');
+      const d = normalize(obj);
+      ui.pending = { kind: 'json', fileName: f.name, data: d, logCount: d.logs.length };
+    } else {
+      const logs = csvToLogs(text);
+      ui.pending = { kind: 'csv', fileName: f.name, logs, logCount: logs.length };
+    }
+    openSheet({ type: 'restore' });
+  } catch (err) { toast('読み込みに失敗: ' + err.message); }
+});
+
+/* ========== actions ========== */
+const actions = {
+  tab: el => { ui.tab = el.dataset.id; render(); scrollTo(0, 0); },
+  shiftDay: el => { ui.date = addDays(ui.date, +el.dataset.d); render(); },
+  goToday: () => { ui.date = today(); render(); },
+  filterPart: el => { ui.partFilter = el.dataset.id; render(); },
+  histPart: el => { ui.histPart = el.dataset.id; render(); },
+  shiftMonth: el => {
+    const [y, m] = ui.histMonth.split('-').map(Number), d = new Date(y, m - 1 + +el.dataset.d, 1);
+    ui.histMonth = `${d.getFullYear()}-${pad(d.getMonth()+1)}`; render();
+  },
+  gotoDate: el => { ui.date = el.dataset.date; ui.tab = 'record'; render(); scrollTo(0, 0); },
+  gRange: el => { ui.graph.range = el.dataset.id; render(); },
+  gMetric: el => { ui.graph.metric = el.dataset.id; render(); },
+  gPart: el => { ui.graph.part = ui.graph.part === el.dataset.id ? null : el.dataset.id; render(); },
+  closeSheet: () => closeSheet(),
+
+  openEntry: el => {
+    const prev = lastByMenu()[el.dataset.id];
+    openSheet({ type: 'entry', menuId: el.dataset.id, logId: null, prev,
+      values: { weight: prev ? prev.weight : 0, reps: prev ? prev.reps : 10, sets: prev ? prev.sets : 3, memo: '' } });
+  },
+  editEntry: el => {
+    const l = data.logs.find(x => x.id === el.dataset.id); if (!l) return;
+    openSheet({ type: 'entry', menuId: l.menuId, logId: l.id, prev: null, values: { weight: l.weight, reps: l.reps, sets: l.sets, memo: l.memo } });
+  },
+  step: el => {
+    const f = el.dataset.f, inp = $('#f-' + f), st = f === 'weight' ? data.settings.weightStep : 1;
+    const min = f === 'sets' ? 1 : 0;
+    inp.value = Math.max(min, Math.round(((+inp.value || 0) + st * +el.dataset.d) * 100) / 100);
+  },
+  setVal: el => { $('#f-' + el.dataset.f).value = el.dataset.v; },
+  saveEntry: () => {
+    const s = ui.sheet;
+    const weight = Math.max(0, +$('#f-weight').value || 0), reps = Math.max(0, +$('#f-reps').value || 0), sets = Math.max(0, +$('#f-sets').value || 0);
+    if (!sets || (!reps && !weight)) { toast('回数とセット数を入力してください'); return; }
+    const memo = $('#f-memo').value.trim();
+    if (s.logId) {
+      Object.assign(data.logs.find(l => l.id === s.logId), { weight, reps, sets, memo });
+      toast('更新しました');
+    } else {
+      data.logs.push(normLog({ id: uid(), date: ui.date, menuId: s.menuId, weight, reps, sets, memo, createdAt: Date.now() }));
+      toast(`${menuById(s.menuId).name} を記録しました`);
+    }
+    save(); closeSheet(); render();
+  },
+  deleteEntry: () => {
+    if (!confirm('この記録を削除しますか？')) return;
+    data.logs = data.logs.filter(l => l.id !== ui.sheet.logId);
+    save(); closeSheet(); render(); toast('削除しました');
+  },
+
+  openMenuManager: () => openSheet({ type: 'menus' }),
+  moveMenu: el => {
+    const i = data.menus.findIndex(m => m.id === el.dataset.id), j = i + +el.dataset.d;
+    if (j < 0 || j >= data.menus.length) return;
+    [data.menus[i], data.menus[j]] = [data.menus[j], data.menus[i]];
+    save(); renderSheet(); render();
+  },
+  editMenu: el => {
+    const m = menuById(el.dataset.id);
+    openSheet({ type: 'menuEdit', id: m ? m.id : null, name: m ? m.name : '',
+      main: m ? m.partIds[0] || null : (ui.partFilter !== 'all' ? ui.partFilter : null), subs: m ? m.partIds.slice(1) : [] });
+  },
+  pickMain: el => { keepSheetInputs(); const s = ui.sheet; s.main = el.dataset.id; s.subs = s.subs.filter(id => id !== s.main); renderSheet(); },
+  pickSub: el => {
+    keepSheetInputs(); const s = ui.sheet, id = el.dataset.id;
+    s.subs = s.subs.includes(id) ? s.subs.filter(x => x !== id) : [...s.subs, id]; renderSheet();
+  },
+  quickAddPart: () => {
+    keepSheetInputs();
+    const name = (prompt('追加する部位名（例: お尻、前腕）') || '').trim();
+    if (!name) return;
+    if (data.parts.some(p => p.name === name)) { toast('同じ名前の部位があります'); return; }
+    const p = { id: 'p' + uid(), name, color: PALETTE[data.parts.length % PALETTE.length] };
+    data.parts.push(p); save();
+    if (!ui.sheet.main) ui.sheet.main = p.id; else ui.sheet.subs.push(p.id);
+    renderSheet(); render();
+  },
+  saveMenu: () => {
+    keepSheetInputs(); const s = ui.sheet, name = s.name.trim();
+    if (!name) { toast('メニュー名を入力してください'); return; }
+    if (!s.main) { toast('主な部位を選んでください'); return; }
+    if (data.menus.some(m => m.name === name && m.id !== s.id)) { toast('同じ名前のメニューがあります'); return; }
+    const partIds = [s.main, ...s.subs.filter(id => id !== s.main)];
+    if (s.id) Object.assign(menuById(s.id), { name, partIds });
+    else data.menus.push({ id: 'm' + uid(), name, partIds });
+    save(); render(); openSheet({ type: 'menus' }); toast('保存しました');
+  },
+  deleteMenu: () => {
+    const m = menuById(ui.sheet.id), n = data.logs.filter(l => l.menuId === m.id).length;
+    if (!confirm(`「${m.name}」を削除しますか？` + (n ? `\n（過去の記録 ${n} 件は履歴に残ります）` : ''))) return;
+    data.logs.forEach(snapshot);
+    data.menus = data.menus.filter(x => x.id !== m.id);
+    save(); render(); openSheet({ type: 'menus' }); toast('削除しました');
+  },
+
+  editPart: el => {
+    const p = partById(el.dataset.id);
+    openSheet({ type: 'partEdit', id: p ? p.id : null, name: p ? p.name : '', color: p ? p.color : PALETTE[data.parts.length % PALETTE.length] });
+  },
+  pickColor: el => { keepSheetInputs(); ui.sheet.color = el.dataset.v; renderSheet(); },
+  savePart: () => {
+    keepSheetInputs(); const s = ui.sheet, name = s.name.trim();
+    if (!name) { toast('部位名を入力してください'); return; }
+    if (data.parts.some(p => p.name === name && p.id !== s.id)) { toast('同じ名前の部位があります'); return; }
+    if (s.id) Object.assign(partById(s.id), { name, color: s.color });
+    else data.parts.push({ id: 'p' + uid(), name, color: s.color });
+    save(); closeSheet(); render(); toast('保存しました');
+  },
+  deletePart: () => {
+    const p = partById(ui.sheet.id), n = data.menus.filter(m => m.partIds.includes(p.id)).length;
+    if (!confirm(`部位「${p.name}」を削除しますか？` + (n ? `\n${n}件のメニューからこの部位が外れます。` : ''))) return;
+    data.parts = data.parts.filter(x => x.id !== p.id);
+    data.menus.forEach(m => m.partIds = m.partIds.filter(id => id !== p.id));
+    if (ui.partFilter === p.id) ui.partFilter = 'all';
+    if (ui.histPart === p.id) ui.histPart = 'all';
+    if (ui.graph.part === p.id) ui.graph.part = null;
+    save(); closeSheet(); render(); toast('削除しました');
+  },
+
+  setStep: el => { data.settings.weightStep = +el.dataset.v; save(); render(); },
+  exportJson: () => doExport('json'),
+  exportCsv: () => doExport('csv'),
+  pickFile: () => $('#fileInput').click(),
+  doRestore: el => {
+    const p = ui.pending, mode = el.dataset.mode;
+    if (mode === 'replace' && !confirm('現在のデータを置き換えます。よろしいですか？')) return;
+    let msg;
+    if (p.kind === 'json') {
+      if (mode === 'replace') { data = p.data; msg = `復元しました（記録 ${data.logs.length} 件）`; }
+      else msg = `${mergeData(data, p.data)} 件の記録を追加しました`;
+    } else {
+      if (mode === 'replace') data.logs = [];
+      msg = `${applyCsvLogs(data, p.logs)} 件の記録を${mode === 'replace' ? '復元' : '追加'}しました`;
+    }
+    ui.pending = null; ui.partFilter = 'all'; ui.histPart = 'all'; ui.graph.part = null;
+    save(); closeSheet(); render(); toast(msg);
+  },
+  wipe: () => {
+    if (!confirm('すべての記録・メニュー・部位を削除して初期状態に戻します。\n先にバックアップすることをおすすめします。よろしいですか？')) return;
+    if (!confirm('本当に削除しますか？元に戻せません。')) return;
+    data = defaultData(); save(); render(); toast('初期化しました');
+  },
+};
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  if (el.id === 'overlay' && e.target !== el) return;
+  const fn = actions[el.dataset.act];
+  if (fn) { e.preventDefault(); fn(el); }
+});
+document.addEventListener('input', e => {
+  if (e.target.dataset.input === 'search') { ui.search = e.target.value; $('#chips').innerHTML = renderChips(); }
+});
+document.addEventListener('change', e => {
+  const k = e.target.dataset.change;
+  if (k === 'setDate' && e.target.value) { ui.date = e.target.value; render(); }
+  else if (k === 'includeSub') { data.settings.includeSub = e.target.checked; save(); render(); }
+  else if (k === 'gMenu') { ui.graph.menuId = e.target.value; render(); }
+});
+// 日付が変わったら「今日」表示を更新
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+render();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
