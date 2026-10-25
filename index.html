@@ -120,6 +120,9 @@ h2.page{font-size:20px;margin:6px 0 14px}
 .pchip{padding:8px 14px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);font-weight:700;display:inline-flex;align-items:center;gap:6px}
 .pchip::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--c)}
 .pchip.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 18%,var(--card))}
+.pchip .no{font-size:11px;font-weight:800;background:var(--c);color:#fff;border-radius:99px;padding:0 6px;margin-left:2px}
+.grp{font-size:12px;font-weight:700;color:var(--sub);margin:10px 2px 6px}
+.kind{font-size:11px;font-weight:700;color:var(--sub);background:var(--soft);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:2px}
 .mrow{display:flex;align-items:center;gap:6px;background:var(--card);border-radius:14px;padding:8px 8px 8px 14px;margin-bottom:6px}
 .mrow .mmain{flex:1;text-align:left;min-width:0}
 .mrow .mmain b{display:block}
@@ -191,47 +194,107 @@ const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); ret
 const today = () => ymd(new Date());
 const WD = '日月火水木金土';
 const fmtDate = s => { const d = parseYmd(s); return `${d.getMonth()+1}月${d.getDate()}日 (${WD[d.getDay()]})`; };
-const fmtN = n => (Math.round(n*10)/10).toLocaleString('ja-JP');
+const fmtN = (n, digits = 1) => { const f = Math.pow(10, digits); return (Math.round(n*f)/f).toLocaleString('ja-JP'); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const daysBetween = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
 
 /* ========== data ========== */
 const STORE_KEY = 'training-log-v1';
-const PALETTE = ['#e5484d','#4f8ef7','#f5a524','#8e4ec6','#22a861','#12a594','#e93d82','#d6730f','#3e63dd','#7c8594'];
 const GRAY = '#9aa1ad';
+const MAX_PARTS = 3;
+// 部位の大分類（絞り込み・グラフの集計に使用）
+const GROUPS = [
+  { id: 'chest', name: '胸', color: '#e5484d' }, { id: 'back', name: '背中', color: '#3e63dd' },
+  { id: 'shoulder', name: '肩', color: '#f5a524' }, { id: 'arm', name: '腕', color: '#8e4ec6' },
+  { id: 'leg', name: '脚・お尻', color: '#22a861' }, { id: 'abs', name: '腹', color: '#12a594' },
+  { id: 'cardio', name: '有酸素', color: '#e93d82' }, { id: 'other', name: 'その他', color: '#7c8594' },
+];
+const groupById = id => GROUPS.find(g => g.id === id) || GROUPS[GROUPS.length-1];
+const DEFAULT_PARTS = [
+  ['大胸筋', 'chest', '#e5484d'],
+  ['広背筋', 'back', '#3e63dd'], ['僧帽筋', 'back', '#7b96f0'], ['脊柱起立筋', 'back', '#24409e'],
+  ['三角筋前部', 'shoulder', '#f5a524'], ['三角筋中部', 'shoulder', '#f8c665'], ['三角筋後部', 'shoulder', '#bd7a06'],
+  ['上腕二頭筋', 'arm', '#8e4ec6'], ['上腕三頭筋', 'arm', '#b68ae3'], ['前腕', 'arm', '#622b8f'],
+  ['大腿四頭筋', 'leg', '#22a861'], ['ハムストリングス', 'leg', '#68cc93'], ['大臀筋', 'leg', '#13744a'],
+  ['内転筋', 'leg', '#a3dfbb'], ['ふくらはぎ', 'leg', '#3d8f2c'],
+  ['腹直筋', 'abs', '#12a594'], ['腹斜筋', 'abs', '#6fd3c8'],
+  ['心肺（持久力）', 'cardio', '#e93d82'],
+];
+const PALETTE = [...new Set([...DEFAULT_PARTS.map(p => p[2]), ...GROUPS.map(g => g.color)])];
+// [名前, 部位(最大3・先頭が主), 記録の種類, 距離の単位]
+const DEFAULT_MENUS = [
+  ['ベンチプレス', ['大胸筋', '三角筋前部', '上腕三頭筋']], ['ダンベルフライ', ['大胸筋', '三角筋前部']],
+  ['腕立て伏せ', ['大胸筋', '上腕三頭筋', '三角筋前部']],
+  ['ラットプルダウン', ['広背筋', '上腕二頭筋', '三角筋後部']], ['シーテッドロー', ['広背筋', '僧帽筋', '上腕二頭筋']],
+  ['懸垂', ['広背筋', '上腕二頭筋', '僧帽筋']], ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
+  ['ショルダープレス', ['三角筋前部', '三角筋中部', '上腕三頭筋']], ['サイドレイズ', ['三角筋中部']],
+  ['アームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
+  ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['レッグプレス', ['大腿四頭筋', '大臀筋']],
+  ['クランチ', ['腹直筋']], ['レッグレイズ', ['腹直筋', '腹斜筋']],
+  ['水泳', ['心肺（持久力）', '広背筋', '三角筋前部'], 'distTime', 'm'],
+  ['自転車', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'distTime', 'km'],
+  ['トレッドミル ランニング', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'treadmill'],
+  ['トレッドミル インクラインウォーク', ['心肺（持久力）', '大臀筋', 'ふくらはぎ'], 'treadmill'],
+];
+const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・距離・傾斜']];
+// 旧バージョン（大まかな部位）からの移行用
+const OLD_GROUP = { '胸': 'chest', '背中': 'back', '肩': 'shoulder', '腕': 'arm', '脚': 'leg', 'お尻': 'leg', '腹': 'abs', '全身': 'cardio' };
+const V1_MENUS = {
+  'ベンチプレス': '胸/腕/肩', 'ダンベルフライ': '胸', '腕立て伏せ': '胸/腕', 'ラットプルダウン': '背中/腕', '懸垂': '背中/腕',
+  'デッドリフト': '背中/脚', 'ショルダープレス': '肩/腕', 'サイドレイズ': '肩', 'アームカール': '腕', 'フレンチプレス': '腕',
+  'スクワット': '脚/腹', 'レッグプレス': '脚', 'クランチ': '腹', 'レッグレイズ': '腹',
+};
 
 function defaultData() {
-  const parts = ['胸','背中','肩','腕','脚','腹','全身'].map((name, i) => ({ id: 'p'+(i+1), name, color: PALETTE[i] }));
+  const parts = DEFAULT_PARTS.map(([name, group, color], i) => ({ id: 'q' + (i+1), name, group, color }));
   const P = n => parts.find(p => p.name === n).id;
-  const menus = [
-    ['ベンチプレス', ['胸','腕','肩']], ['ダンベルフライ', ['胸']], ['腕立て伏せ', ['胸','腕']],
-    ['ラットプルダウン', ['背中','腕']], ['懸垂', ['背中','腕']], ['デッドリフト', ['背中','脚']],
-    ['ショルダープレス', ['肩','腕']], ['サイドレイズ', ['肩']], ['アームカール', ['腕']],
-    ['フレンチプレス', ['腕']], ['スクワット', ['脚','腹']], ['レッグプレス', ['脚']],
-    ['クランチ', ['腹']], ['レッグレイズ', ['腹']],
-  ].map(([name, ps], i) => ({ id: 'm'+(i+1), name, partIds: ps.map(P) }));
-  return { version: 1, parts, menus, logs: [], settings: { weightStep: 2.5, includeSub: false, lastBackup: null } };
+  const menus = DEFAULT_MENUS.map(([name, ps, kind = 'strength', distUnit = 'km'], i) =>
+    ({ id: 'n' + (i+1), name, partIds: ps.map(P), kind, distUnit }));
+  return { version: 2, parts, menus, logs: [], settings: { weightStep: 2.5, includeSub: false, lastBackup: null } };
 }
+const num0 = v => Math.max(0, +v || 0);
 function normLog(l) {
   return {
     id: String(l.id), date: l.date, menuId: String(l.menuId || ''), menuName: String(l.menuName || ''),
     partNames: Array.isArray(l.partNames) ? l.partNames.map(String) : [],
-    weight: Math.max(0, +l.weight || 0), reps: Math.max(0, +l.reps || 0), sets: Math.max(0, +l.sets || 0),
+    kind: KINDS.some(k => k[0] === l.kind) ? l.kind : 'strength', distUnit: l.distUnit === 'm' ? 'm' : 'km',
+    weight: num0(l.weight), reps: num0(l.reps), sets: num0(l.sets),
+    distance: num0(l.distance), time: num0(l.time), speed: num0(l.speed), incline: num0(l.incline),
     memo: String(l.memo || ''), createdAt: +l.createdAt || Date.now(),
   };
 }
 function normalize(d) {
+  if (!d || typeof d !== 'object') return defaultData();
   const def = defaultData();
-  if (!d || typeof d !== 'object') return def;
-  return {
-    version: 1,
-    parts: Array.isArray(d.parts) ? d.parts.filter(p => p && p.id && p.name)
-      .map((p, i) => ({ id: String(p.id), name: String(p.name), color: p.color || PALETTE[i % PALETTE.length] })) : def.parts,
-    menus: Array.isArray(d.menus) ? d.menus.filter(m => m && m.id && m.name)
-      .map(m => ({ id: String(m.id), name: String(m.name), partIds: Array.isArray(m.partIds) ? m.partIds.map(String) : [] })) : def.menus,
+  const out = {
+    version: 2,
+    parts: Array.isArray(d.parts) ? d.parts.filter(p => p && p.id && p.name).map((p, i) => ({
+      id: String(p.id), name: String(p.name), color: p.color || PALETTE[i % PALETTE.length],
+      group: GROUPS.some(g => g.id === p.group) ? p.group : (OLD_GROUP[p.name] || 'other') })) : def.parts,
+    menus: Array.isArray(d.menus) ? d.menus.filter(m => m && m.id && m.name).map(m => ({
+      id: String(m.id), name: String(m.name), partIds: Array.isArray(m.partIds) ? m.partIds.map(String) : [],
+      kind: KINDS.some(k => k[0] === m.kind) ? m.kind : 'strength', distUnit: m.distUnit === 'm' ? 'm' : 'km' })) : def.menus,
     logs: Array.isArray(d.logs) ? d.logs.filter(l => l && l.id && /^\d{4}-\d{2}-\d{2}$/.test(l.date)).map(normLog) : [],
     settings: Object.assign({}, def.settings, d.settings || {}),
   };
+  if ((+d.version || 1) < 2 && Array.isArray(d.parts)) migrateV1(out);
+  return out;
+}
+// v1 → v2: 細かい部位と新メニューを追加し、初期メニューの部位を細分化
+function migrateV1(d) {
+  const byName = n => d.parts.find(p => p.name === n);
+  for (const [name, group, color] of DEFAULT_PARTS) if (!byName(name)) d.parts.push({ id: 'q' + uid(), name, group, color });
+  let prev = -1;
+  for (const [name, ps, kind = 'strength', distUnit = 'km'] of DEFAULT_MENUS) {
+    const ids = ps.map(n => byName(n).id);
+    const i = d.menus.findIndex(m => m.name === name);
+    if (i < 0) { d.menus.splice(prev + 1, 0, { id: 'n' + uid(), name, partIds: ids, kind, distUnit }); prev++; continue; }
+    prev = i;
+    const m = d.menus[i];
+    const cur = m.partIds.map(id => (d.parts.find(p => p.id === id) || {}).name).join('/');
+    if (V1_MENUS[name] === cur) m.partIds = ids; // 自分で変更していない初期メニューだけ置き換える
+  }
+  d.parts = d.parts.filter(p => !(OLD_GROUP[p.name] && !d.menus.some(m => m.partIds.includes(p.id))));
 }
 function load() {
   try { const s = localStorage.getItem(STORE_KEY); if (s) return normalize(JSON.parse(s)); }
@@ -246,21 +309,29 @@ const menuParts = m => m.partIds.map(partById).filter(Boolean);
 function logParts(l) {
   const m = menuById(l.menuId);
   if (m) return menuParts(m);
-  return l.partNames.map(n => data.parts.find(p => p.name === n) || { id: 'x:'+n, name: n, color: GRAY });
+  return l.partNames.map(n => data.parts.find(p => p.name === n) || { id: 'x:' + n, name: n, color: GRAY, group: OLD_GROUP[n] || 'other' });
 }
 const logName = l => { const m = menuById(l.menuId); return m ? m.name : l.menuName; };
-const volume = l => l.weight * l.reps * l.sets;
+const logKind = l => { const m = menuById(l.menuId); return m ? m.kind : l.kind; };
+const logUnit = l => { const m = menuById(l.menuId); return m ? m.distUnit : l.distUnit; };
+const volume = l => logKind(l) === 'strength' ? l.weight * l.reps * l.sets : 0;
+const cardioTime = l => l.time || (logKind(l) === 'treadmill' && l.speed ? l.distance / l.speed * 60 : 0);
+const distText = (km, unit) => unit === 'm' ? fmtN(km * 1000, 0) + 'm' : fmtN(km, 2) + 'km';
+const kindLabel = k => (KINDS.find(x => x[0] === k) || KINDS[0])[1];
 
-// 履歴にメニュー名・部位名のスナップショットを持たせる（メニュー削除後も履歴が読めるように）
+// 履歴にメニュー名・部位名などのスナップショットを持たせる（メニュー削除後も履歴が読めるように）
 function snapshot(l) {
   const m = menuById(l.menuId);
-  if (m) { l.menuName = m.name; l.partNames = menuParts(m).map(p => p.name); }
+  if (m) { l.menuName = m.name; l.partNames = menuParts(m).map(p => p.name); l.kind = m.kind; l.distUnit = m.distUnit; }
 }
 function save() {
   data.logs.forEach(snapshot);
   try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
   catch (e) { toast('保存に失敗しました: ' + e.message); }
 }
+// 旧バージョンのデータは移行した内容で保存し直す
+try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":2}').version || 1) < 2) save(); } catch (e) { console.error(e); }
+
 const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
 function lastByMenu() {
   const map = {};
@@ -270,14 +341,20 @@ function lastByMenu() {
   }
   return map;
 }
-const setText = l => `${l.weight ? fmtN(l.weight) + 'kg × ' : '自重 × '}${fmtN(l.reps)}回 × ${fmtN(l.sets)}set`;
+function setText(l) {
+  const k = logKind(l);
+  if (k === 'distTime') return [l.distance ? distText(l.distance, logUnit(l)) : '', l.time ? fmtN(l.time) + '分' : ''].filter(Boolean).join(' ・ ');
+  if (k === 'treadmill') return [l.speed ? fmtN(l.speed) + 'km/h' : '', l.distance ? distText(l.distance, 'km') : '', '傾斜' + fmtN(l.incline) + '%'].filter(Boolean).join(' ・ ');
+  return `${l.weight ? fmtN(l.weight, 2) + 'kg × ' : '自重 × '}${fmtN(l.reps)}回 × ${fmtN(l.sets)}set`;
+}
 const partTags = ps => ps.map((p, i) => `<span class="ptag${i === 0 ? ' main' : ''}" style="--c:${p.color}">${esc(p.name)}</span>`).join('');
+const usedGroups = () => GROUPS.filter(g => data.parts.some(p => p.group === g.id));
 
 /* ========== ui state ========== */
 const ui = {
   tab: 'record', date: today(), partFilter: 'all', search: '',
   histMonth: today().slice(0, 7), histPart: 'all',
-  graph: { range: '3m', metric: 'sets', part: null, menuId: '' },
+  graph: { range: '3m', metric: 'sets', by: 'group', part: null, menuId: '' },
   sheet: null, pending: null,
 };
 
@@ -291,9 +368,11 @@ function toast(msg) {
 function renderRecord() {
   const d = ui.date, isToday = d === today();
   const logs = sortLogs(data.logs.filter(l => l.date === d));
-  const sets = logs.reduce((a, l) => a + l.sets, 0);
-  const reps = logs.reduce((a, l) => a + l.reps * l.sets, 0);
+  const sets = logs.reduce((a, l) => a + (logKind(l) === 'strength' ? l.sets : 0), 0);
+  const reps = logs.reduce((a, l) => a + (logKind(l) === 'strength' ? l.reps * l.sets : 0), 0);
   const vol = logs.reduce((a, l) => a + volume(l), 0);
+  const cardio = logs.filter(l => logKind(l) !== 'strength');
+  const dist = cardio.reduce((a, l) => a + l.distance, 0), time = cardio.reduce((a, l) => a + cardioTime(l), 0);
   const dayParts = [];
   logs.forEach(l => { const p = logParts(l)[0]; if (p && !dayParts.some(x => x.id === p.id)) dayParts.push(p); });
   return `
@@ -311,11 +390,15 @@ function renderRecord() {
       <div class="big">${fmtN(sets)}<small>set</small></div><div class="sub">総回数 <b>${fmtN(reps)}</b> 回</div></div>
     <div class="card stat"><div class="row"><span>ボリューム</span></div>
       <div class="big">${vol >= 10000 ? fmtN(vol/1000) + '<small>t</small>' : fmtN(vol) + '<small>kg</small>'}</div>
-      <div class="dots">${dayParts.length ? partTags(dayParts.map(p => p)).replace(/ main/g, '') : '<span class="sub">まだ記録なし</span>'}</div></div>
+      <div class="sub">重量 × 回数 × セット</div></div>
+    ${cardio.length ? `<div class="card stat" style="grid-column:1/-1"><div class="row"><span>有酸素</span><span>${cardio.length}種目</span></div>
+      <div style="display:flex;gap:18px;align-items:baseline">
+        <div class="big">${fmtN(dist, 2)}<small>km</small></div><div class="big">${fmtN(time, 0)}<small>分</small></div></div></div>` : ''}
   </div>
-  <div class="seg">${partFilterButtons(ui.partFilter, 'filterPart')}</div>
+  ${dayParts.length ? `<div class="dots" style="margin:-2px 2px 12px">${dayParts.map(p => `<span class="ptag" style="--c:${p.color}">${esc(p.name)}</span>`).join('')}</div>` : ''}
+  <div class="seg">${groupFilterButtons(ui.partFilter, 'filterPart')}</div>
   <div class="sechead"><span>タップで追加</span><button data-act="openMenuManager">✏️ 編集</button></div>
-  <input class="search" type="search" placeholder="メニューをさがす" value="${esc(ui.search)}" data-input="search">
+  <input class="search" type="search" placeholder="メニュー・部位をさがす" value="${esc(ui.search)}" data-input="search">
   <div class="chips" id="chips">${renderChips()}</div>
   <div class="sechead"><span>${fmtDate(d)} の記録</span>${logs.length ? '<span class="sub">タップで修正</span>' : ''}</div>
   ${logs.length ? logs.map(l => `
@@ -325,15 +408,15 @@ function renderRecord() {
     </button>`).join('') : '<div class="empty">上のメニューをタップして記録しましょう 💪</div>'}
   `;
 }
-function partFilterButtons(cur, act) {
+function groupFilterButtons(cur, act) {
   return `<button class="${cur === 'all' ? 'on' : ''}" data-act="${act}" data-id="all">すべて</button>` +
-    data.parts.map(p => `<button class="${cur === p.id ? 'on' : ''}" data-act="${act}" data-id="${p.id}">${esc(p.name)}</button>`).join('');
+    usedGroups().map(g => `<button class="${cur === g.id ? 'on' : ''}" data-act="${act}" data-id="${g.id}">${esc(g.name)}</button>`).join('');
 }
 function renderChips() {
   const q = ui.search.trim().toLowerCase();
   const last = lastByMenu();
   const list = data.menus.filter(m =>
-    (ui.partFilter === 'all' || m.partIds.includes(ui.partFilter)) &&
+    (ui.partFilter === 'all' || menuParts(m).some(p => p.group === ui.partFilter)) &&
     (!q || m.name.toLowerCase().includes(q) || menuParts(m).some(p => p.name.toLowerCase().includes(q))));
   if (!list.length) return '<div class="empty" style="grid-column:1/-1">該当するメニューがありません。「✏️ 編集」から追加できます</div>';
   return list.map(m => {
@@ -347,10 +430,15 @@ function renderChips() {
 }
 
 /* ========== render: history ========== */
+function daySummary(ls) {
+  const sets = ls.reduce((a, l) => a + (logKind(l) === 'strength' ? l.sets : 0), 0);
+  const dist = ls.reduce((a, l) => a + (logKind(l) !== 'strength' ? l.distance : 0), 0);
+  return [sets ? sets + 'セット' : '', dist ? fmtN(dist, 2) + 'km' : ''].filter(Boolean).join(' ・ ');
+}
 function renderHistory() {
   const [y, m] = ui.histMonth.split('-').map(Number);
   const first = new Date(y, m-1, 1), nDays = new Date(y, m, 0).getDate(), startW = first.getDay();
-  const match = l => ui.histPart === 'all' || logParts(l).some(p => p.id === ui.histPart);
+  const match = l => ui.histPart === 'all' || logParts(l).some(p => p.group === ui.histPart);
   const byDate = {};
   data.logs.filter(l => l.date.startsWith(ui.histMonth) && match(l)).forEach(l => (byDate[l.date] ||= []).push(l));
   const t = today();
@@ -358,15 +446,15 @@ function renderHistory() {
   for (let i = 0; i < startW; i++) cells += '<div></div>';
   for (let d = 1; d <= nDays; d++) {
     const ds = `${ui.histMonth}-${pad(d)}`, ls = byDate[ds] || [];
-    const colors = [...new Set(ls.map(l => (logParts(l)[0] || { color: GRAY }).color))].slice(0, 4);
+    const colors = [...new Set(ls.map(l => { const p = logParts(l)[0]; return p ? groupById(p.group).color : GRAY; }))].slice(0, 4);
     cells += `<button class="d${ls.length ? ' has' : ''}${ds === t ? ' today' : ''}" data-act="gotoDate" data-date="${ds}">${d}
       <span class="dd">${colors.map(c => `<i style="background:${c}"></i>`).join('')}</span></button>`;
   }
   const dates = Object.keys(byDate).sort().reverse();
-  const totalSets = dates.reduce((a, ds) => a + byDate[ds].reduce((b, l) => b + l.sets, 0), 0);
+  const all = dates.flatMap(ds => byDate[ds]);
   return `
   <h2 class="page">履歴</h2>
-  <div class="seg small">${partFilterButtons(ui.histPart, 'histPart')}</div>
+  <div class="seg small">${groupFilterButtons(ui.histPart, 'histPart')}</div>
   <div class="card">
     <div class="calhead">
       <button class="icon" data-act="shiftMonth" data-d="-1" aria-label="前の月">‹</button>
@@ -374,14 +462,14 @@ function renderHistory() {
       <button class="icon" data-act="shiftMonth" data-d="1" aria-label="次の月">›</button>
     </div>
     <div class="cal">${cells}</div>
-    <div class="sub" style="margin-top:10px;text-align:center">トレーニング日数 <b>${dates.length}</b> 日 ・ 合計 <b>${fmtN(totalSets)}</b> セット</div>
+    <div class="sub" style="margin-top:10px;text-align:center">トレーニング日数 <b>${dates.length}</b> 日${all.length ? ' ・ ' + daySummary(all) : ''}</div>
   </div>
   ${dates.length ? dates.map(ds => {
     const ls = sortLogs(byDate[ds]);
     const ps = []; ls.forEach(l => logParts(l).slice(0, 1).forEach(p => { if (!ps.some(x => x.id === p.id)) ps.push(p); }));
     return `<div class="card">
       <button class="dayhead" data-act="gotoDate" data-date="${ds}">
-        <b>${fmtDate(ds)}</b><span class="sub">${ls.reduce((a, l) => a + l.sets, 0)}セット ›</span></button>
+        <b>${fmtDate(ds)}</b><span class="sub">${daySummary(ls)} ›</span></button>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 4px">${ps.map(p => `<span class="ptag main" style="--c:${p.color}">${esc(p.name)}</span>`).join('')}</div>
       ${ls.map(l => `<div class="dline"><span>${esc(logName(l))}</span><span class="nums">${setText(l)}</span></div>`).join('')}
     </div>`;
@@ -391,7 +479,7 @@ function renderHistory() {
 
 /* ========== render: graph ========== */
 const RANGES = [['1m', '1ヶ月'], ['3m', '3ヶ月'], ['6m', '6ヶ月'], ['1y', '1年'], ['all', '全期間']];
-const METRICS = [['sets', 'セット数', 'セット'], ['reps', '総回数', '回'], ['volume', 'ボリューム', 'kg']];
+const METRICS = [['sets', 'セット数', 'セット'], ['reps', '総回数', '回'], ['volume', 'ボリューム', 'kg'], ['distance', '距離', 'km'], ['time', '時間', '分']];
 function rangeStart(r) {
   const t = today();
   if (r === 'all') return data.logs.reduce((a, l) => l.date < a ? l.date : a, t);
@@ -412,11 +500,20 @@ function buckets(start, end, unit) {
   const label = k => unit === 'month' ? `${+k.slice(5, 7)}月` : `${+k.slice(5, 7)}/${+k.slice(8, 10)}`;
   return keys.map(k => ({ key: k, label: label(k) }));
 }
-const metricVal = (l, m) => m === 'sets' ? l.sets : m === 'reps' ? l.reps * l.sets : volume(l);
-function targetParts(l) {
-  const ps = logParts(l);
-  if (!ps.length) return [{ id: 'none', name: '未分類', color: GRAY }];
-  return data.settings.includeSub ? ps : ps.slice(0, 1);
+function metricVal(l, m) {
+  const st = logKind(l) === 'strength';
+  return m === 'sets' ? (st ? l.sets : 0) : m === 'reps' ? (st ? l.reps * l.sets : 0) : m === 'volume' ? volume(l)
+    : m === 'distance' ? (st ? 0 : l.distance) : (st ? 0 : cardioTime(l));
+}
+// 集計先（部位 or 大分類）。サブ部位を含めない場合は主な部位のみ
+function targets(l, by) {
+  let ps = logParts(l);
+  if (!ps.length) ps = [{ id: 'none', name: '未分類', color: GRAY, group: 'other' }];
+  if (!data.settings.includeSub) ps = ps.slice(0, 1);
+  if (by === 'part') return ps;
+  const out = [];
+  ps.forEach(p => { const g = groupById(p.group); if (!out.some(x => x.id === 'g:' + g.id)) out.push({ id: 'g:' + g.id, name: g.name, color: g.color }); });
+  return out;
 }
 function niceMax(v) {
   if (v <= 0) return 1;
@@ -460,10 +557,43 @@ function svgLine(points, start, end, color) {
     g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" class="grid"/><text x="${L-4}" y="${y+3}" class="ax" text-anchor="end">${shortN(v)}</text>`;
   }
   g += `<polyline fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" points="${points.map(p => `${X(p.date).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ')}"/>`;
-  g += points.map(p => `<circle cx="${X(p.date).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.5" fill="${color}"><title>${p.date}: ${fmtN(p.v)}</title></circle>`).join('');
+  g += points.map(p => `<circle cx="${X(p.date).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.5" fill="${color}"><title>${p.date}: ${fmtN(p.v, 2)}</title></circle>`).join('');
   const lbl = ds => `${+ds.slice(5, 7)}/${+ds.slice(8, 10)}`;
   g += `<text x="${L}" y="${H-6}" class="ax">${lbl(start)}</text><text x="${W-R}" y="${H-6}" class="ax" text-anchor="end">${lbl(end)}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">${g}</svg>`;
+}
+const kpi = (label, val, unit) => `<div><span class="sub">${label}</span><b>${val}</b><span class="sub">${unit}</span></div>`;
+function menuProgress(menuId, logs, start, end) {
+  const ml = logs.filter(l => l.menuId === menuId), allM = data.logs.filter(l => l.menuId === menuId);
+  const anyLog = allM[0];
+  const kind = logKind(anyLog), unit = logUnit(anyLog);
+  const color = (logParts(anyLog)[0] || { color: 'var(--accent)' }).color;
+  const byDay = {}, put = (d, v, f) => byDay[d] = f(byDay[d] || 0, v);
+  let kpis, label;
+  if (kind === 'strength') {
+    const useW = allM.some(l => l.weight > 0);
+    ml.forEach(l => put(l.date, useW ? l.weight : l.reps, Math.max));
+    const best = allM.reduce((a, l) => Math.max(a, useW ? l.weight : l.reps), 0);
+    const rm = allM.reduce((a, l) => Math.max(a, l.weight * (1 + l.reps / 30)), 0);
+    kpis = kpi('自己ベスト', fmtN(best, 2), useW ? 'kg' : '回') + kpi('推定1RM', rm ? fmtN(rm) : '-', 'kg') + kpi('期間内', new Set(ml.map(l => l.date)).size, '回実施');
+    label = `日ごとの最大${useW ? '重量 (kg)' : '回数'}`;
+  } else {
+    const m = unit === 'm' ? 1000 : 1, u = unit === 'm' ? 'm' : 'km';
+    ml.forEach(l => put(l.date, l.distance * m, (a, b) => a + b));
+    const pd = ml.reduce((a, l) => a + l.distance, 0);
+    if (kind === 'treadmill') {
+      kpis = kpi('最高速度', fmtN(allM.reduce((a, l) => Math.max(a, l.speed), 0)), 'km/h') +
+        kpi('最大傾斜', fmtN(allM.reduce((a, l) => Math.max(a, l.incline), 0)), '%') + kpi('期間内距離', fmtN(pd, 2), 'km');
+    } else {
+      kpis = kpi('最長距離', fmtN(allM.reduce((a, l) => Math.max(a, l.distance), 0) * m, unit === 'm' ? 0 : 2), u) +
+        kpi('期間内距離', fmtN(pd * m, unit === 'm' ? 0 : 2), u) + kpi('期間内時間', fmtN(ml.reduce((a, l) => a + cardioTime(l), 0), 0), '分');
+    }
+    label = `日ごとの距離 (${u})`;
+  }
+  const pts = Object.keys(byDay).sort().map(d => ({ date: d, v: byDay[d] }));
+  return `<div class="kpis" style="margin-bottom:10px">${kpis}</div>
+    <div class="sub" style="margin-bottom:4px">${label}</div>
+    ${pts.length ? svgLine(pts, start, end, color) : '<div class="empty">この期間の記録はありません</div>'}`;
 }
 
 function renderGraph() {
@@ -472,65 +602,46 @@ function renderGraph() {
   const [, mLabel, mUnit] = METRICS.find(m => m[0] === G.metric);
   const unit = bucketUnit(start, end), bs = buckets(start, end, unit), idx = {};
   bs.forEach((b, i) => idx[b.key] = i);
+  const digits = G.metric === 'distance' ? 2 : G.metric === 'time' ? 0 : 1;
 
-  // 部位ごとの系列
   const seriesMap = new Map();
-  for (const p of data.parts) seriesMap.set(p.id, { id: p.id, name: p.name, color: p.color, values: bs.map(() => 0), total: 0 });
+  const base = G.by === 'part' ? data.parts : GROUPS.map(g => ({ id: 'g:' + g.id, name: g.name, color: g.color }));
+  for (const p of base) seriesMap.set(p.id, { id: p.id, name: p.name, color: p.color, values: bs.map(() => 0), total: 0 });
   for (const l of logs) {
     const i = idx[bucketKey(l.date, unit)], v = metricVal(l, G.metric);
-    for (const p of targetParts(l)) {
+    if (!v) continue;
+    for (const p of targets(l, G.by)) {
       if (!seriesMap.has(p.id)) seriesMap.set(p.id, { id: p.id, name: p.name, color: p.color, values: bs.map(() => 0), total: 0 });
       const s = seriesMap.get(p.id); s.values[i] += v; s.total += v;
     }
   }
-  const allSeries = [...seriesMap.values()];
-  const used = allSeries.filter(s => s.total > 0);
+  const used = [...seriesMap.values()].filter(s => s.total > 0);
+  if (G.part && !used.some(s => s.id === G.part)) G.part = null;
   const shown = G.part ? used.filter(s => s.id === G.part) : used;
   const grand = used.reduce((a, s) => a + s.total, 0);
   const days = new Set(logs.map(l => l.date)).size;
   const weeks = Math.max(1, (daysBetween(start, end) + 1) / 7);
+  // サブ部位を含めると1つの記録が複数部位に入るので、合計は記録そのものから計算
+  const total = logs.reduce((a, l) => a + metricVal(l, G.metric), 0);
 
-  // 種目別
   const menuOpts = [...new Set(sortLogs([...data.logs]).reverse().map(l => l.menuId))];
   if (!G.menuId || !menuOpts.includes(G.menuId)) G.menuId = menuOpts[0] || '';
-  let menuCard = '<div class="empty">記録がありません</div>';
-  if (G.menuId) {
-    const ml = logs.filter(l => l.menuId === G.menuId);
-    const useW = ml.some(l => l.weight > 0);
-    const byDay = {};
-    ml.forEach(l => { const v = useW ? l.weight : l.reps; byDay[l.date] = Math.max(byDay[l.date] || 0, v); });
-    const pts = Object.keys(byDay).sort().map(d => ({ date: d, v: byDay[d] }));
-    const allM = data.logs.filter(l => l.menuId === G.menuId);
-    const best = allM.reduce((a, l) => Math.max(a, useW ? l.weight : l.reps), 0);
-    const rm = allM.reduce((a, l) => Math.max(a, l.weight * (1 + l.reps / 30)), 0);
-    const anyLog = allM[0];
-    const color = (anyLog && logParts(anyLog)[0] || { color: 'var(--accent)' }).color;
-    menuCard = `
-      <div class="kpis" style="margin-bottom:10px">
-        <div><span class="sub">自己ベスト</span><b>${fmtN(best)}</b><span class="sub">${useW ? 'kg' : '回'}</span></div>
-        <div><span class="sub">推定1RM</span><b>${rm ? fmtN(rm) : '-'}</b><span class="sub">kg</span></div>
-        <div><span class="sub">期間内</span><b>${new Set(ml.map(l => l.date)).size}</b><span class="sub">回実施</span></div>
-      </div>
-      <div class="sub" style="margin-bottom:4px">日ごとの最大${useW ? '重量 (kg)' : '回数'}</div>
-      ${pts.length ? svgLine(pts, start, end, color) : '<div class="empty">この期間の記録はありません</div>'}`;
-  }
 
   return `
   <h2 class="page">グラフ</h2>
   <div class="seg small">${RANGES.map(([k, n]) => `<button class="${G.range === k ? 'on' : ''}" data-act="gRange" data-id="${k}">${n}</button>`).join('')}</div>
   <div class="seg small">${METRICS.map(([k, n]) => `<button class="${G.metric === k ? 'on' : ''}" data-act="gMetric" data-id="${k}">${n}</button>`).join('')}</div>
+  <div class="seg small">${[['group', '大分類（胸・背中…）'], ['part', '筋肉別（細かく）']].map(([k, n]) => `<button class="${G.by === k ? 'on' : ''}" data-act="gBy" data-id="${k}">${n}</button>`).join('')}</div>
   <label class="check"><input type="checkbox" data-change="includeSub" ${data.settings.includeSub ? 'checked' : ''}> サブ部位も集計に含める（OFF: 主な部位のみ）</label>
   <div class="card">
     <div class="kpis">
-      <div><span class="sub">トレ日数</span><b>${days}</b><span class="sub">日</span></div>
-      <div><span class="sub">週平均</span><b>${fmtN(days / weeks)}</b><span class="sub">日</span></div>
-      <div><span class="sub">${mLabel}</span><b>${shortN(grand)}</b><span class="sub">${mUnit}</span></div>
+      ${kpi('トレ日数', days, '日')}${kpi('週平均', fmtN(days / weeks), '日')}${kpi(mLabel, digits === 2 ? fmtN(total, 1) : shortN(total), mUnit)}
     </div>
   </div>
   <div class="card">
     <div class="card-title"><span>部位別の推移</span><span class="sub">${unit === 'day' ? '日別' : unit === 'week' ? '週別' : '月別'} ・ ${mLabel}</span></div>
     ${used.length ? svgBars(bs.map(b => b.label), shown) : '<div class="empty">この期間の記録はありません</div>'}
-    ${used.length ? `<div class="legend">${used.map(s => `<button class="${G.part && G.part !== s.id ? 'off' : ''}" style="--c:${s.color}" data-act="gPart" data-id="${s.id}"><i></i>${esc(s.name)}</button>`).join('')}</div>
+    ${used.length ? `<div class="legend">${used.map(s => `<button class="${G.part && G.part !== s.id ? 'off' : ''}" style="--c:${s.color}" data-act="gPart" data-id="${esc(s.id)}"><i></i>${esc(s.name)}</button>`).join('')}</div>
     <div class="sub" style="margin-top:6px">部位をタップするとその部位だけ表示します</div>` : ''}
   </div>
   <div class="card">
@@ -538,7 +649,7 @@ function renderGraph() {
     ${used.length ? [...used].sort((a, b) => b.total - a.total).map(s => `
       <div class="hbar"><span>${esc(s.name)}</span>
         <div class="track"><div class="fill" style="width:${(s.total / Math.max(...used.map(x => x.total)) * 100).toFixed(1)}%;background:${s.color}"></div></div>
-        <span class="v">${fmtN(s.total)} <span class="sub">${Math.round(s.total / grand * 100)}%</span></span></div>`).join('')
+        <span class="v">${fmtN(s.total, digits)} <span class="sub">${Math.round(s.total / grand * 100)}%</span></span></div>`).join('')
       : '<div class="empty">この期間の記録はありません</div>'}
   </div>
   <div class="card">
@@ -546,8 +657,7 @@ function renderGraph() {
     ${menuOpts.length ? `<select class="select" data-change="gMenu">${menuOpts.map(id => {
       const l = data.logs.find(x => x.menuId === id);
       return `<option value="${esc(id)}" ${id === G.menuId ? 'selected' : ''}>${esc(logName(l))}</option>`;
-    }).join('')}</select>` : ''}
-    ${menuCard}
+    }).join('')}</select>${menuProgress(G.menuId, logs, start, end)}` : '<div class="empty">記録がありません</div>'}
   </div>`;
 }
 
@@ -564,8 +674,9 @@ function renderSettings() {
   <h2 class="page">設定</h2>
   <div class="card">
     <div class="card-title"><span>部位</span><button class="link" data-act="editPart" data-id="">＋ 追加</button></div>
-    ${data.parts.map(p => `<button class="srow" data-act="editPart" data-id="${p.id}">
-      <span><span class="ptag main" style="--c:${p.color}">${esc(p.name)}</span></span><span class="sub">${usedBy(p.id)}メニュー ›</span></button>`).join('')}
+    ${GROUPS.filter(g => data.parts.some(p => p.group === g.id)).map(g => `<div class="grp">${esc(g.name)}</div>` +
+      data.parts.filter(p => p.group === g.id).map(p => `<button class="srow" data-act="editPart" data-id="${p.id}">
+        <span><span class="ptag main" style="--c:${p.color}">${esc(p.name)}</span></span><span class="sub">${usedBy(p.id)}メニュー ›</span></button>`).join('')).join('')}
   </div>
   <div class="card">
     <div class="card-title"><span>トレーニングメニュー</span><span class="sub">${data.menus.length}件</span></div>
@@ -615,48 +726,76 @@ function renderSheet() {
   const html = { entry: sheetEntry, menus: sheetMenus, menuEdit: sheetMenuEdit, partEdit: sheetPartEdit, restore: sheetRestore }[s.type]();
   $('#sheet').innerHTML = '<div class="grip"></div>' + html;
 }
-const stepper = (f, label, unit, v) => `
+// 記録の種類ごとの入力欄: [項目, ラベル, 単位, ＋/−の刻み, 最小値, ワンタップ候補]
+function entryFields(kind, unit) {
+  if (kind === 'distTime') return [
+    ['distance', '距離', unit, unit === 'm' ? 25 : 0.5, 0, unit === 'm' ? [500, 1000, 1500, 2000] : [5, 10, 20, 30]],
+    ['time', '時間', '分', 5, 0, [15, 30, 45, 60, 90]],
+  ];
+  if (kind === 'treadmill') return [
+    ['speed', '速度', 'km/h', 0.5, 0, [4, 5, 6, 8, 10, 12]],
+    ['distance', '距離', 'km', 0.1, 0, [1, 2, 3, 5, 10]],
+    ['incline', '傾斜', '%', 0.5, 0, [0, 3, 5, 10, 15]],
+  ];
+  return [
+    ['weight', '重量', 'kg', data.settings.weightStep, 0, [['自重 (0kg)', 0]]],
+    ['reps', '回数', '回', 1, 0, [5, 8, 10, 12, 15, 20]],
+    ['sets', 'セット数', 'set', 1, 1, [1, 2, 3, 4, 5]],
+  ];
+}
+const stepper = ([f, label, unit, step, min, quick], v) => `
   <div class="field"><div class="flabel">${label}</div>
     <div class="stepper">
-      <button data-act="step" data-f="${f}" data-d="-1" aria-label="${label}を減らす">−</button>
-      <div class="sval"><input id="f-${f}" type="number" inputmode="decimal" min="0" step="any" value="${v}"><span>${unit}</span></div>
-      <button data-act="step" data-f="${f}" data-d="1" aria-label="${label}を増やす">＋</button>
+      <button data-act="step" data-f="${f}" data-d="${-step}" data-min="${min}" aria-label="${label}を減らす">−</button>
+      <div class="sval"><input id="f-${f}" type="number" inputmode="decimal" min="${min}" step="any" value="${v}"><span>${unit}</span></div>
+      <button data-act="step" data-f="${f}" data-d="${step}" data-min="${min}" aria-label="${label}を増やす">＋</button>
     </div>
-    ${f === 'weight' ? '<div class="quick"><button data-act="setVal" data-f="weight" data-v="0">自重 (0kg)</button></div>' : ''}
-    ${f === 'reps' ? `<div class="quick">${[5, 8, 10, 12, 15, 20].map(n => `<button data-act="setVal" data-f="reps" data-v="${n}">${n}</button>`).join('')}</div>` : ''}
-    ${f === 'sets' ? `<div class="quick">${[1, 2, 3, 4, 5].map(n => `<button data-act="setVal" data-f="sets" data-v="${n}">${n}</button>`).join('')}</div>` : ''}
+    <div class="quick">${quick.map(q => { const [t, val] = Array.isArray(q) ? q : [q, q];
+      return `<button data-act="setVal" data-f="${f}" data-v="${val}">${t}</button>`; }).join('')}</div>
   </div>`;
+// 保存値 ⇔ 入力欄の値（水泳などの m 表示だけ換算）
+const toInput = (l, f, unit) => f === 'distance' && unit === 'm' ? Math.round(l[f] * 1000) : l[f];
+const fromInput = (v, f, unit) => f === 'distance' && unit === 'm' ? v / 1000 : v;
 function sheetEntry() {
   const s = ui.sheet, log = s.logId ? data.logs.find(l => l.id === s.logId) : null;
   const m = menuById(s.menuId);
   const name = m ? m.name : log.menuName;
   const ps = m ? menuParts(m) : logParts(log);
-  const v = s.values;
   return `
     <div class="sheet-title">${esc(name)}</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap">${partTags(ps)}</div>
     <div class="sub" style="margin-top:4px">${fmtDate(log ? log.date : ui.date)}${s.prev ? ` ・ 前回 ${setText(s.prev)}` : ''}</div>
-    ${stepper('weight', '重量', 'kg', v.weight)}
-    ${stepper('reps', '回数', '回', v.reps)}
-    ${stepper('sets', 'セット数', 'set', v.sets)}
-    <input id="f-memo" class="input" style="margin-top:10px" placeholder="メモ（任意）" value="${esc(v.memo)}">
+    ${entryFields(s.kind, s.unit).map(fd => stepper(fd, s.values[fd[0]])).join('')}
+    <input id="f-memo" class="input" style="margin-top:10px" placeholder="メモ（任意）" value="${esc(s.values.memo)}">
     <div class="actions">
       ${log ? '<button class="btn danger" data-act="deleteEntry">削除</button>' : '<button class="btn" data-act="closeSheet">キャンセル</button>'}
       <button class="btn primary" data-act="saveEntry">${log ? '更新する' : '記録する'}</button>
     </div>`;
 }
+function entryValues(src, kind, unit) {
+  const v = { memo: src && src.memo || '' };
+  const def = { weight: 0, reps: 10, sets: 3, distance: 0, time: 30, speed: 6, incline: 0 };
+  entryFields(kind, unit).forEach(([f]) => v[f] = src ? toInput(src, f, unit) : def[f]);
+  return v;
+}
 function sheetMenus() {
   return `
     <div class="sheet-title">メニューの編集</div>
-    <div class="sub">タップで名前・部位を編集。↑↓で並び替え</div>
+    <div class="sub">タップで名前・部位・記録の種類を編集。↑↓で並び替え</div>
     <button class="btn block primary" style="margin:12px 0" data-act="editMenu" data-id="">＋ 新しいメニューを追加</button>
     ${data.menus.map((m, i) => `<div class="mrow">
-      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}</b>
+      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}${m.kind !== 'strength' ? `<span class="kind">${kindLabel(m.kind)}</span>` : ''}</b>
         <span style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">${partTags(menuParts(m)) || '<span class="sub">部位未設定</span>'}</span></button>
       <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="-1" ${i === 0 ? 'disabled style="opacity:.3"' : ''} aria-label="上へ">↑</button>
       <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="1" ${i === data.menus.length-1 ? 'disabled style="opacity:.3"' : ''} aria-label="下へ">↓</button>
     </div>`).join('') || '<div class="empty">メニューがありません</div>'}
     <button class="btn block" style="margin-top:12px" data-act="closeSheet">閉じる</button>`;
+}
+function partPicker(sel, act) {
+  return GROUPS.filter(g => data.parts.some(p => p.group === g.id)).map(g => `<div class="grp">${esc(g.name)}</div><div class="pick">${
+    data.parts.filter(p => p.group === g.id).map(p => { const n = sel.indexOf(p.id);
+      return `<button class="pchip ${n >= 0 ? 'on' : ''}" style="--c:${p.color}" data-act="${act}" data-id="${p.id}">${esc(p.name)}${n >= 0 ? `<span class="no">${n === 0 ? '主' : n + 1}</span>` : ''}</button>`;
+    }).join('')}</div>`).join('');
 }
 function sheetMenuEdit() {
   const s = ui.sheet;
@@ -664,10 +803,12 @@ function sheetMenuEdit() {
     <div class="sheet-title">${s.id ? 'メニューを編集' : 'メニューを追加'}</div>
     <label class="flabel" for="m-name">メニュー名</label>
     <input id="m-name" class="input" value="${esc(s.name)}" placeholder="例: インクラインベンチプレス">
-    <label class="flabel">主に鍛える部位（1つ）</label>
-    <div class="pick">${data.parts.map(p => `<button class="pchip ${s.main === p.id ? 'on' : ''}" style="--c:${p.color}" data-act="pickMain" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>
-    <label class="flabel">サブで鍛える部位（複数可）</label>
-    <div class="pick">${data.parts.filter(p => p.id !== s.main).map(p => `<button class="pchip ${s.subs.includes(p.id) ? 'on' : ''}" style="--c:${p.color}" data-act="pickSub" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+    <label class="flabel">記録する内容</label>
+    <div class="pick">${KINDS.map(([k, n, d]) => `<button class="pchip ${s.kind === k ? 'on' : ''}" style="--c:var(--accent)" data-act="pickKind" data-id="${k}">${n}<span class="sub" style="font-weight:500">${d}</span></button>`).join('')}</div>
+    ${s.kind === 'distTime' ? `<label class="flabel">距離の単位</label>
+      <div class="pick">${[['km', 'km（自転車など）'], ['m', 'm（水泳など）']].map(([u, n]) => `<button class="pchip ${s.unit === u ? 'on' : ''}" style="--c:var(--accent)" data-act="pickUnit" data-id="${u}">${n}</button>`).join('')}</div>` : ''}
+    <label class="flabel">鍛える部位（最大${MAX_PARTS}つ・最初に選んだものが「主」）</label>
+    ${partPicker(s.sel, 'pickPart')}
     <button class="link" style="margin-top:8px" data-act="quickAddPart">＋ 部位を新しく追加</button>
     <div class="actions">
       ${s.id ? '<button class="btn danger" data-act="deleteMenu">削除</button>' : ''}
@@ -681,7 +822,9 @@ function sheetPartEdit() {
   return `
     <div class="sheet-title">${s.id ? '部位を編集' : '部位を追加'}</div>
     <label class="flabel" for="p-name">部位名</label>
-    <input id="p-name" class="input" value="${esc(s.name)}" placeholder="例: お尻">
+    <input id="p-name" class="input" value="${esc(s.name)}" placeholder="例: 中臀筋">
+    <label class="flabel">大分類（絞り込み・グラフ用）</label>
+    <div class="pick">${GROUPS.map(g => `<button class="pchip ${s.group === g.id ? 'on' : ''}" style="--c:${g.color}" data-act="pickGroup" data-id="${g.id}">${esc(g.name)}</button>`).join('')}</div>
     <label class="flabel">色</label>
     <div class="colors">${PALETTE.map(c => `<button class="${s.color === c ? 'on' : ''}" style="--c:${c}" data-act="pickColor" data-v="${c}" aria-label="${c}"></button>`).join('')}</div>
     ${s.id ? `<div class="sub" style="margin-top:12px">この部位を使っているメニュー: ${n}件</div>` : ''}
@@ -716,12 +859,16 @@ function keepSheetInputs() {
 }
 
 /* ========== backup ========== */
-const CSV_HEAD = ['日付', 'メニュー', '主な部位', '部位', '重量(kg)', '回数', 'セット数', 'ボリューム(kg)', 'メモ', 'ID', 'メニューID', '登録日時'];
+const CSV_HEAD = ['日付', 'メニュー', '種類', '主な部位', '部位', '重量(kg)', '回数', 'セット数', 'ボリューム(kg)',
+  '距離(km)', '時間(分)', '速度(km/h)', '傾斜(%)', 'メモ', 'ID', 'メニューID', '登録日時'];
 const csvCell = v => { const s = String(v ?? ''); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 function toCsv() {
   const rows = sortLogs([...data.logs]).map(l => {
-    const ps = logParts(l).map(p => p.name);
-    return [l.date, logName(l), ps[0] || '', ps.join('/'), l.weight, l.reps, l.sets, volume(l), l.memo, l.id, l.menuId, new Date(l.createdAt).toISOString()];
+    const ps = logParts(l).map(p => p.name), k = logKind(l), st = k === 'strength';
+    return [l.date, logName(l), kindLabel(k), ps[0] || '', ps.join('/'),
+      st ? l.weight : '', st ? l.reps : '', st ? l.sets : '', st ? volume(l) : '',
+      st ? '' : l.distance, st || !l.time ? '' : l.time, k === 'treadmill' ? l.speed : '', k === 'treadmill' ? l.incline : '',
+      l.memo, l.id, l.menuId, new Date(l.createdAt).toISOString()];
   });
   return '﻿' + [CSV_HEAD, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
 }
@@ -753,22 +900,26 @@ function csvToLogs(text) {
   const head = rows[0].map(h => h.trim());
   const col = (...names) => head.findIndex(h => names.includes(h));
   const c = {
-    date: col('日付', 'date'), menu: col('メニュー', 'menu'), main: col('主な部位', 'main_part'), parts: col('部位', 'parts'),
+    date: col('日付', 'date'), menu: col('メニュー', 'menu'), kind: col('種類', 'kind'), main: col('主な部位', 'main_part'), parts: col('部位', 'parts'),
     w: col('重量(kg)', '重量', 'weight'), r: col('回数', 'reps'), s: col('セット数', 'セット', 'sets'),
+    dist: col('距離(km)', 'distance'), time: col('時間(分)', 'time'), speed: col('速度(km/h)', 'speed'), inc: col('傾斜(%)', 'incline'),
     memo: col('メモ', 'memo'), id: col('ID', 'id'), at: col('登録日時', 'createdAt'),
   };
   if (c.date < 0 || c.menu < 0) throw new Error('「日付」「メニュー」の列が見つかりません');
+  const get = (r, i) => i >= 0 ? (r[i] || '').trim() : '';
   const out = [];
   rows.slice(1).forEach((r, i) => {
-    const date = normDate(r[c.date] || ''), menu = (r[c.menu] || '').trim();
+    const date = normDate(get(r, c.date)), menu = get(r, c.menu);
     if (!date || !menu) return;
-    let parts = c.parts >= 0 ? (r[c.parts] || '').split('/').map(x => x.trim()).filter(Boolean) : [];
-    const main = c.main >= 0 ? (r[c.main] || '').trim() : '';
+    const parts = get(r, c.parts).split('/').map(x => x.trim()).filter(Boolean);
+    const main = get(r, c.main);
     if (main && !parts.includes(main)) parts.unshift(main);
+    const kind = (KINDS.find(k => k[1] === get(r, c.kind) || k[0] === get(r, c.kind)) || KINDS[0])[0];
     out.push({
-      id: (c.id >= 0 && r[c.id]?.trim()) || 'csv' + uid() + i, date, menuName: menu, partNames: parts,
-      weight: +(r[c.w] || 0) || 0, reps: +(r[c.r] || 0) || 0, sets: +(r[c.s] || 0) || 0,
-      memo: c.memo >= 0 ? r[c.memo] || '' : '', createdAt: (c.at >= 0 && Date.parse(r[c.at])) || Date.now() + i,
+      id: get(r, c.id) || 'csv' + uid() + i, date, menuName: menu, partNames: parts.slice(0, MAX_PARTS), kind,
+      weight: get(r, c.w), reps: get(r, c.r), sets: get(r, c.s),
+      distance: get(r, c.dist), time: get(r, c.time), speed: get(r, c.speed), incline: get(r, c.inc),
+      memo: c.memo >= 0 ? r[c.memo] || '' : '', createdAt: Date.parse(get(r, c.at)) || Date.now() + i,
     });
   });
   return out;
@@ -778,13 +929,16 @@ function applyCsvLogs(target, logs) {
   const ids = new Set(target.logs.map(l => l.id)); let added = 0;
   for (const raw of logs) {
     if (ids.has(raw.id)) continue;
-    const pIds = raw.partNames.map(n => {
-      let p = target.parts.find(x => x.name === n);
-      if (!p) { p = { id: 'p' + uid(), name: n, color: PALETTE[target.parts.length % PALETTE.length] }; target.parts.push(p); }
-      return p.id;
-    });
     let m = target.menus.find(x => x.name === raw.menuName);
-    if (!m) { m = { id: 'm' + uid(), name: raw.menuName, partIds: pIds }; target.menus.push(m); }
+    if (!m) {
+      const pIds = raw.partNames.map(n => {
+        let p = target.parts.find(x => x.name === n);
+        if (!p) { p = { id: 'p' + uid(), name: n, group: OLD_GROUP[n] || 'other', color: PALETTE[target.parts.length % PALETTE.length] }; target.parts.push(p); }
+        return p.id;
+      });
+      m = { id: 'm' + uid(), name: raw.menuName, partIds: pIds, kind: raw.kind, distUnit: 'km' };
+      target.menus.push(m);
+    }
     target.logs.push(normLog({ ...raw, menuId: m.id })); ids.add(raw.id); added++;
   }
   return added;
@@ -856,34 +1010,37 @@ const actions = {
   gotoDate: el => { ui.date = el.dataset.date; ui.tab = 'record'; render(); scrollTo(0, 0); },
   gRange: el => { ui.graph.range = el.dataset.id; render(); },
   gMetric: el => { ui.graph.metric = el.dataset.id; render(); },
+  gBy: el => { ui.graph.by = el.dataset.id; ui.graph.part = null; render(); },
   gPart: el => { ui.graph.part = ui.graph.part === el.dataset.id ? null : el.dataset.id; render(); },
   closeSheet: () => closeSheet(),
 
   openEntry: el => {
-    const prev = lastByMenu()[el.dataset.id];
-    openSheet({ type: 'entry', menuId: el.dataset.id, logId: null, prev,
-      values: { weight: prev ? prev.weight : 0, reps: prev ? prev.reps : 10, sets: prev ? prev.sets : 3, memo: '' } });
+    const m = menuById(el.dataset.id), prev = lastByMenu()[m.id];
+    openSheet({ type: 'entry', menuId: m.id, logId: null, prev, kind: m.kind, unit: m.distUnit,
+      values: entryValues(prev && { ...prev, memo: '' }, m.kind, m.distUnit) });
   },
   editEntry: el => {
     const l = data.logs.find(x => x.id === el.dataset.id); if (!l) return;
-    openSheet({ type: 'entry', menuId: l.menuId, logId: l.id, prev: null, values: { weight: l.weight, reps: l.reps, sets: l.sets, memo: l.memo } });
+    const kind = logKind(l), unit = logUnit(l);
+    openSheet({ type: 'entry', menuId: l.menuId, logId: l.id, prev: null, kind, unit, values: entryValues(l, kind, unit) });
   },
   step: el => {
-    const f = el.dataset.f, inp = $('#f-' + f), st = f === 'weight' ? data.settings.weightStep : 1;
-    const min = f === 'sets' ? 1 : 0;
-    inp.value = Math.max(min, Math.round(((+inp.value || 0) + st * +el.dataset.d) * 100) / 100);
+    const inp = $('#f-' + el.dataset.f);
+    inp.value = Math.max(+el.dataset.min, Math.round(((+inp.value || 0) + +el.dataset.d) * 100) / 100);
   },
   setVal: el => { $('#f-' + el.dataset.f).value = el.dataset.v; },
   saveEntry: () => {
-    const s = ui.sheet;
-    const weight = Math.max(0, +$('#f-weight').value || 0), reps = Math.max(0, +$('#f-reps').value || 0), sets = Math.max(0, +$('#f-sets').value || 0);
-    if (!sets || (!reps && !weight)) { toast('回数とセット数を入力してください'); return; }
-    const memo = $('#f-memo').value.trim();
+    const s = ui.sheet, v = {};
+    entryFields(s.kind, s.unit).forEach(([f]) => v[f] = fromInput(Math.max(0, +$('#f-' + f).value || 0), f, s.unit));
+    if (s.kind === 'strength' && (!v.sets || (!v.reps && !v.weight))) { toast('回数とセット数を入力してください'); return; }
+    if (s.kind === 'distTime' && !v.distance && !v.time) { toast('距離か時間を入力してください'); return; }
+    if (s.kind === 'treadmill' && !v.distance && !v.speed) { toast('速度か距離を入力してください'); return; }
+    v.memo = $('#f-memo').value.trim();
     if (s.logId) {
-      Object.assign(data.logs.find(l => l.id === s.logId), { weight, reps, sets, memo });
+      Object.assign(data.logs.find(l => l.id === s.logId), v);
       toast('更新しました');
     } else {
-      data.logs.push(normLog({ id: uid(), date: ui.date, menuId: s.menuId, weight, reps, sets, memo, createdAt: Date.now() }));
+      data.logs.push(normLog({ id: uid(), date: ui.date, menuId: s.menuId, ...v, createdAt: Date.now() }));
       toast(`${menuById(s.menuId).name} を記録しました`);
     }
     save(); closeSheet(); render();
@@ -903,32 +1060,37 @@ const actions = {
   },
   editMenu: el => {
     const m = menuById(el.dataset.id);
-    openSheet({ type: 'menuEdit', id: m ? m.id : null, name: m ? m.name : '',
-      main: m ? m.partIds[0] || null : (ui.partFilter !== 'all' ? ui.partFilter : null), subs: m ? m.partIds.slice(1) : [] });
+    openSheet({ type: 'menuEdit', id: m ? m.id : null, name: m ? m.name : '', sel: m ? [...m.partIds] : [],
+      kind: m ? m.kind : 'strength', unit: m ? m.distUnit : 'km' });
   },
-  pickMain: el => { keepSheetInputs(); const s = ui.sheet; s.main = el.dataset.id; s.subs = s.subs.filter(id => id !== s.main); renderSheet(); },
-  pickSub: el => {
+  pickKind: el => { keepSheetInputs(); ui.sheet.kind = el.dataset.id; renderSheet(); },
+  pickUnit: el => { keepSheetInputs(); ui.sheet.unit = el.dataset.id; renderSheet(); },
+  pickPart: el => {
     keepSheetInputs(); const s = ui.sheet, id = el.dataset.id;
-    s.subs = s.subs.includes(id) ? s.subs.filter(x => x !== id) : [...s.subs, id]; renderSheet();
+    if (s.sel.includes(id)) s.sel = s.sel.filter(x => x !== id);
+    else if (s.sel.length >= MAX_PARTS) { toast(`部位は最大${MAX_PARTS}つまでです`); return; }
+    else s.sel.push(id);
+    renderSheet();
   },
   quickAddPart: () => {
     keepSheetInputs();
-    const name = (prompt('追加する部位名（例: お尻、前腕）') || '').trim();
+    const name = (prompt('追加する部位名（例: 中臀筋、腸腰筋）') || '').trim();
     if (!name) return;
     if (data.parts.some(p => p.name === name)) { toast('同じ名前の部位があります'); return; }
-    const p = { id: 'p' + uid(), name, color: PALETTE[data.parts.length % PALETTE.length] };
+    const p = { id: 'p' + uid(), name, group: 'other', color: PALETTE[data.parts.length % PALETTE.length] };
     data.parts.push(p); save();
-    if (!ui.sheet.main) ui.sheet.main = p.id; else ui.sheet.subs.push(p.id);
+    if (ui.sheet.sel.length < MAX_PARTS) ui.sheet.sel.push(p.id);
     renderSheet(); render();
+    toast('「その他」に追加しました。大分類は設定→部位で変更できます');
   },
   saveMenu: () => {
     keepSheetInputs(); const s = ui.sheet, name = s.name.trim();
     if (!name) { toast('メニュー名を入力してください'); return; }
-    if (!s.main) { toast('主な部位を選んでください'); return; }
+    if (!s.sel.length) { toast('部位を1つ以上選んでください'); return; }
     if (data.menus.some(m => m.name === name && m.id !== s.id)) { toast('同じ名前のメニューがあります'); return; }
-    const partIds = [s.main, ...s.subs.filter(id => id !== s.main)];
-    if (s.id) Object.assign(menuById(s.id), { name, partIds });
-    else data.menus.push({ id: 'm' + uid(), name, partIds });
+    const fields = { name, partIds: s.sel.slice(0, MAX_PARTS), kind: s.kind, distUnit: s.unit };
+    if (s.id) Object.assign(menuById(s.id), fields);
+    else data.menus.push({ id: 'm' + uid(), ...fields });
     save(); render(); openSheet({ type: 'menus' }); toast('保存しました');
   },
   deleteMenu: () => {
@@ -941,15 +1103,17 @@ const actions = {
 
   editPart: el => {
     const p = partById(el.dataset.id);
-    openSheet({ type: 'partEdit', id: p ? p.id : null, name: p ? p.name : '', color: p ? p.color : PALETTE[data.parts.length % PALETTE.length] });
+    openSheet({ type: 'partEdit', id: p ? p.id : null, name: p ? p.name : '', group: p ? p.group : 'other',
+      color: p ? p.color : PALETTE[data.parts.length % PALETTE.length] });
   },
+  pickGroup: el => { keepSheetInputs(); ui.sheet.group = el.dataset.id; renderSheet(); },
   pickColor: el => { keepSheetInputs(); ui.sheet.color = el.dataset.v; renderSheet(); },
   savePart: () => {
     keepSheetInputs(); const s = ui.sheet, name = s.name.trim();
     if (!name) { toast('部位名を入力してください'); return; }
     if (data.parts.some(p => p.name === name && p.id !== s.id)) { toast('同じ名前の部位があります'); return; }
-    if (s.id) Object.assign(partById(s.id), { name, color: s.color });
-    else data.parts.push({ id: 'p' + uid(), name, color: s.color });
+    if (s.id) Object.assign(partById(s.id), { name, group: s.group, color: s.color });
+    else data.parts.push({ id: 'p' + uid(), name, group: s.group, color: s.color });
     save(); closeSheet(); render(); toast('保存しました');
   },
   deletePart: () => {
@@ -957,8 +1121,6 @@ const actions = {
     if (!confirm(`部位「${p.name}」を削除しますか？` + (n ? `\n${n}件のメニューからこの部位が外れます。` : ''))) return;
     data.parts = data.parts.filter(x => x.id !== p.id);
     data.menus.forEach(m => m.partIds = m.partIds.filter(id => id !== p.id));
-    if (ui.partFilter === p.id) ui.partFilter = 'all';
-    if (ui.histPart === p.id) ui.histPart = 'all';
     if (ui.graph.part === p.id) ui.graph.part = null;
     save(); closeSheet(); render(); toast('削除しました');
   },
