@@ -1,6 +1,6 @@
 # MyHealthApp
 
-## 🏋️ 筋トレ記録アプリ（`index.html`）
+## 🏋️ トレーニング管理アプリ（`index.html`）
 公開URL: https://toshiroadachi.github.io/MyHealthApp/
 
 スマホでタップするだけで筋トレ・有酸素運動を記録できるWebアプリです。データはスマホの中（ブラウザ）に保存されます。

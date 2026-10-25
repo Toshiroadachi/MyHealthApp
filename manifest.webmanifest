@@ -1,6 +1,6 @@
 {
-  "name": "筋トレ記録",
-  "short_name": "筋トレ記録",
+  "name": "トレーニング管理",
+  "short_name": "トレーニング管理",
   "description": "タップで簡単に入力できるトレーニング記録アプリ",
   "lang": "ja",
   "start_url": "./",
