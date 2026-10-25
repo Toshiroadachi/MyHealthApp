@@ -68,6 +68,22 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:16px;padding:10px;bo
 .done-msg div{font-size:64px}
 .done-msg h2{font-size:26px;margin:8px 0 4px}
 .hidden{display:none!important}
+body.has-video .ring{width:min(44vw,176px);margin:4px auto 0}
+body.has-video .ring .num b{font-size:min(17vw,68px)}
+body.has-video .ring .num span{display:none}
+body.has-video .phase{font-size:22px;margin-top:0}
+body.has-video header{margin-bottom:0}
+body.has-video .dots{margin:6px 0 2px}
+body.has-video .dots i{width:12px;height:12px}
+body.has-video .vcard{margin-top:10px;padding:8px}
+body.has-video .btns{margin-top:10px}
+body.has-video .btn{padding:14px}
+.vcard{background:var(--card);border-radius:18px;padding:12px;margin-top:14px}
+.vcard video{width:100%;border-radius:12px;background:#000;display:block;aspect-ratio:16/9}
+.vrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.chipbtn{padding:8px 12px;border-radius:99px;background:var(--soft);font-weight:700;font-size:14px}
+.chipbtn.on{background:var(--accent);color:#fff}
+.vnote{color:var(--sub);font-size:12px;line-height:1.6;margin-top:8px}
 </style>
 </head>
 <body>
@@ -86,6 +102,33 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:16px;padding:10px;bo
     <div class="dots" id="dots"></div>
     <div class="total" id="total"></div>
     <div class="btns" id="ctrl"></div>
+  </section>
+
+  <!-- 動画（iPhone内の動画を選んで、この端末の中だけに保存） -->
+  <section class="vcard" id="vcard">
+    <div id="vEmpty">
+      <button class="btn" style="width:100%;font-size:17px" data-act="pickVideo">🎬 動画を選ぶ（iPhone内の動画）</button>
+      <div class="vnote">選んだ動画はこのアプリの中（この端末）だけに保存され、インターネットには送られません。一度選べば次回からも使えます。</div>
+    </div>
+    <div id="vHas" class="hidden">
+      <video id="vid" playsinline preload="auto" controls></video>
+      <div class="vrow">
+        <button class="chipbtn" id="vSyncBtn" data-act="toggleSync"></button>
+        <button class="chipbtn" id="vMuteBtn" data-act="toggleMute"></button>
+      </div>
+      <div class="vrow" id="vAdjRow">
+        <span class="vnote" style="margin:0">ずれ調整</span>
+        <button class="chipbtn" data-act="vAdj" data-d="-0.25">− 0.25秒</button>
+        <b id="vOffset" style="min-width:64px;text-align:center"></b>
+        <button class="chipbtn" data-act="vAdj" data-d="0.25">＋ 0.25秒</button>
+      </div>
+      <div class="vrow">
+        <button class="chipbtn" data-act="pickVideo">動画を変更</button>
+        <button class="chipbtn" data-act="removeVideo">動画を削除</button>
+      </div>
+      <div class="vnote" id="vSyncNote"></div>
+    </div>
+    <input type="file" id="vFile" accept="video/*" hidden>
   </section>
 
   <!-- 終了 -->
@@ -117,10 +160,13 @@ textarea{width:100%;min-height:150px;font:inherit;font-size:16px;padding:10px;bo
 'use strict';
 const $ = s => document.querySelector(s);
 const KEY = 'ab-timer-settings';
-const DEF = { work: 20, rest: 10, rounds: 7, prep: 5, names: '' };
+const DEF = { work: 20, rest: 10, rounds: 7, prep: 5, names: 'シットアップ\nクランチ\nニートゥーチェスト\nツイストレッグレイズ\nバイシクルクランチ\nプランク\nマウンテンクライマー',
+  // 動画の連動設定: 動画の中で1種目目が始まる秒数、連動のON/OFF、ミュート
+  vWorkStart: 6.0, vSync: true, vMuted: false };
 const LIMITS = { work: [5, 300], rest: [0, 300], rounds: [1, 30], prep: [0, 30] };
 let cfg = { ...DEF };
 try { cfg = { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) {}
+if (!String(cfg.names || '').trim()) cfg.names = DEF.names;
 const saveCfg = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
 
 const nameOf = r => (cfg.names.split('\n').map(s => s.trim()).filter(Boolean)[r - 1]) || `種目${r}`;
@@ -170,6 +216,50 @@ async function keepAwake() {
 }
 function releaseAwake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
 
+/* ---------- 動画（IndexedDB に保存） ---------- */
+const DB_NAME = 'ab-timer', DB_STORE = 'files', VIDEO_KEY = 'video';
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(DB_STORE);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbDo(mode, fn) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, mode), req = fn(tx.objectStore(DB_STORE));
+    tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+  });
+}
+const vid = $('#vid');
+let hasVideo = false, videoUrl = null;
+function showVideo(blob) {
+  if (videoUrl) URL.revokeObjectURL(videoUrl);
+  hasVideo = !!blob; videoUrl = blob ? URL.createObjectURL(blob) : null;
+  if (blob) vid.src = videoUrl; else vid.removeAttribute('src');
+  vid.load(); render();
+}
+async function loadVideo() { try { showVideo(await idbDo('readonly', st => st.get(VIDEO_KEY))); } catch (e) { console.error(e); } }
+$('#vFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  showVideo(f);
+  try { await idbDo('readwrite', st => st.put(f, VIDEO_KEY)); }
+  catch (err) { alert('動画を保存できませんでした（容量不足の可能性）。今回だけ再生できます。'); }
+});
+// 連動できるのは、動画と同じ 20秒/10秒/7種目 の設定のときだけ
+const syncable = () => hasVideo && cfg.vSync && cfg.work === DEF.work && cfg.rest === DEF.rest && cfg.rounds === DEF.rounds;
+// タイマーの経過秒 → 動画の再生位置
+const videoTimeAt = el => cfg.vWorkStart - cfg.prep + el;
+function syncVideo(force) {
+  if (!syncable()) return;
+  const vt = videoTimeAt(elapsed());
+  if (vt < 0) { if (!vid.paused) vid.pause(); vid.currentTime = 0; return; }
+  if (state === 'running' && vid.paused && vt < (vid.duration || Infinity)) vid.play().catch(() => {});
+  if (force || Math.abs(vid.currentTime - vt) > 0.4) vid.currentTime = vt;
+}
+
 /* ---------- タイマー本体 ---------- */
 let state = 'idle', sched = [], startAt = 0, pausedAt = 0, pausedTotal = 0, segIdx = -1, lastSec = null, timer = null;
 const elapsed = () => ((state === 'paused' ? pausedAt : performance.now()) - startAt - pausedTotal) / 1000;
@@ -177,11 +267,13 @@ const elapsed = () => ((state === 'paused' ? pausedAt : performance.now()) - sta
 function start() {
   unlockAudio();
   sched = schedule(); state = 'running'; startAt = performance.now(); pausedTotal = 0; segIdx = -1; lastSec = null;
-  keepAwake(); clearInterval(timer); timer = setInterval(tick, 100); tick(); render();
+  keepAwake(); clearInterval(timer); timer = setInterval(tick, 100);
+  if (syncable()) { vid.muted = cfg.vMuted; vid.currentTime = Math.max(0, videoTimeAt(0)); if (videoTimeAt(0) >= 0) vid.play().catch(() => {}); }
+  tick(); render();
 }
-function pause() { if (state !== 'running') return; state = 'paused'; pausedAt = performance.now(); render(); }
-function resume() { if (state !== 'paused') return; unlockAudio(); pausedTotal += performance.now() - pausedAt; state = 'running'; keepAwake(); render(); }
-function reset() { clearInterval(timer); state = 'idle'; releaseAwake(); render(); }
+function pause() { if (state !== 'running') return; state = 'paused'; pausedAt = performance.now(); if (syncable()) vid.pause(); render(); }
+function resume() { if (state !== 'paused') return; unlockAudio(); pausedTotal += performance.now() - pausedAt; state = 'running'; keepAwake(); syncVideo(true); render(); }
+function reset() { clearInterval(timer); state = 'idle'; releaseAwake(); if (syncable()) { vid.pause(); vid.currentTime = 0; } render(); }
 function finish() {
   clearInterval(timer); state = 'done'; releaseAwake(); SOUND.finish();
   $('#doneInfo').textContent = `${cfg.rounds}種目 ・ ${fmtMS(totalSec() - cfg.prep)}`;
@@ -196,6 +288,7 @@ function tick() {
   if (i !== segIdx) { segIdx = i; lastSec = remain; SOUND[seg.type](); }
   else if (remain !== lastSec) { lastSec = remain; if (remain <= 3) SOUND.tick(); }
   draw(seg, seg.start + seg.dur - el, remain);
+  syncVideo(false);
 }
 
 /* ---------- 描画 ---------- */
@@ -208,8 +301,10 @@ function dots(cur, type) {
     return `<i class="${done ? 'done' : r === cur && type === 'work' ? 'cur' : ''}"></i>`;
   }).join('');
 }
+// 背景色（準備・トレーニング・休憩）だけを切り替える
+const setPhase = t => { ['prep', 'work', 'rest'].forEach(c => document.body.classList.toggle(c, c === t)); };
 function draw(seg, remainExact, remain) {
-  document.body.className = seg.type;
+  setPhase(seg.type);
   $('#phase').textContent = LABEL[seg.type];
   $('#phase').style.color = COLOR[seg.type];
   $('#next').textContent = seg.type === 'work' ? nameOf(seg.round) : `次: ${nameOf(seg.round)}`;
@@ -230,7 +325,7 @@ function render() {
   $('#hint').classList.toggle('hidden', !idle);
   ['work', 'rest', 'rounds', 'prep'].forEach(k => $('#o-' + k).textContent = cfg[k] + (k === 'rounds' ? '種目' : '秒'));
   if (idle) {
-    document.body.className = '';
+    setPhase('');
     $('#phase').textContent = 'スタート待ち'; $('#phase').style.color = '';
     $('#next').textContent = nameOf(1);
     $('#sec').textContent = cfg.work;
@@ -240,7 +335,19 @@ function render() {
     $('#dots').innerHTML = dots(0, 'idle');
     $('#total').textContent = `合計 ${fmtMS(totalSec())}（準備${cfg.prep}秒を含む）`;
   }
-  if (done) document.body.className = '';
+  if (done) setPhase('');
+  document.body.classList.toggle('has-video', hasVideo);
+  $('#vEmpty').classList.toggle('hidden', hasVideo);
+  $('#vHas').classList.toggle('hidden', !hasVideo);
+  $('#vSyncBtn').textContent = cfg.vSync ? '🔗 タイマーと連動 ON' : 'タイマーと連動 OFF';
+  $('#vSyncBtn').classList.toggle('on', cfg.vSync);
+  $('#vMuteBtn').textContent = cfg.vMuted ? '🔇 動画の音 OFF' : '🔊 動画の音 ON';
+  $('#vAdjRow').classList.toggle('hidden', !cfg.vSync);
+  $('#vOffset').textContent = (cfg.vWorkStart - DEF.vWorkStart >= 0 ? '+' : '') + (cfg.vWorkStart - DEF.vWorkStart).toFixed(2) + '秒';
+  vid.muted = cfg.vMuted;
+  $('#vSyncNote').textContent = !cfg.vSync ? '動画は下の再生ボタンで自由に再生できます。'
+    : syncable() ? 'スタートを押すと、タイマーに合わせて動画も自動で再生されます。動画の方が早い/遅いときは「ずれ調整」で直せます。'
+    : '連動は「20秒・10秒・7種目」の設定のときだけ使えます。今は動画を手動で再生してください。';
   $('#ctrl').innerHTML = idle ? '<button class="btn big primary" data-act="start">スタート</button>'
     : state === 'running' ? '<button class="btn" data-act="reset">やめる</button><button class="btn primary" data-act="pause">一時停止</button>'
     : state === 'paused' ? '<button class="btn" data-act="reset">やめる</button><button class="btn primary" data-act="resume">再開</button>' : '';
@@ -251,6 +358,15 @@ function render() {
 const actions = {
   start, pause, resume,
   reset: () => { if (confirm('タイマーを終了しますか？')) reset(); },
+  pickVideo: () => $('#vFile').click(),
+  removeVideo: async () => {
+    if (!confirm('保存した動画を削除しますか？')) return;
+    try { await idbDo('readwrite', st => st.delete(VIDEO_KEY)); } catch (e) {}
+    showVideo(null);
+  },
+  toggleSync: () => { cfg.vSync = !cfg.vSync; saveCfg(); render(); },
+  toggleMute: () => { cfg.vMuted = !cfg.vMuted; saveCfg(); render(); },
+  vAdj: el => { cfg.vWorkStart = Math.round((cfg.vWorkStart + +el.dataset.d) * 100) / 100; saveCfg(); if (state === 'running') syncVideo(true); render(); },
   adj: el => {
     const k = el.dataset.k, [lo, hi] = LIMITS[k];
     cfg[k] = Math.min(hi, Math.max(lo, cfg[k] + +el.dataset.d)); saveCfg(); render();
@@ -266,6 +382,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && state === 'running') { keepAwake(); if (ac && ac.state === 'suspended') ac.resume(); tick(); }
 });
 render();
+loadVideo();
 </script>
 </body>
 </html>
