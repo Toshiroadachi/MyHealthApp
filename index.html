@@ -1291,18 +1291,6 @@ document.addEventListener('change', e => {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
 render();
-// 他のアプリ（腹筋タイマーなど）から「#add=メニュー名」で開かれたら、そのメニューの記録画面を出す
-function openFromHash() {
-  const m = location.hash.match(/^#add=(.+)$/);
-  if (!m) return;
-  history.replaceState(null, '', location.pathname + location.search);
-  const menu = data.menus.find(x => x.name === decodeURIComponent(m[1]));
-  if (!menu) return;
-  ui.tab = 'record'; ui.date = today(); render();
-  actions.openEntry({ dataset: { id: menu.id } });
-}
-openFromHash();
-window.addEventListener('hashchange', openFromHash);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
