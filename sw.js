@@ -1,6 +1,6 @@
 // オフラインでも開けるようにするService Worker（ネットワーク優先・失敗時はキャッシュ）
 // 更新がすぐ反映されるよう、ブラウザのHTTPキャッシュを使わず毎回サーバーに確認する
-const CACHE = 'training-log-v9';
+const CACHE = 'training-log-v10';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

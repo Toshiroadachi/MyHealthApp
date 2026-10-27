@@ -236,7 +236,8 @@ const DEFAULT_MENUS = [
   ['ダンベルフライ', ['大胸筋', '三角筋前部']],
   ['腕立て伏せ', ['大胸筋', '上腕三頭筋', '三角筋前部']],
   ['ラットプルダウン', ['広背筋', '上腕二頭筋', '三角筋後部']], ['シーテッドロー', ['広背筋', '僧帽筋', '上腕二頭筋']],
-  ['懸垂', ['広背筋', '上腕二頭筋', '僧帽筋']], ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
+  ['懸垂', ['広背筋', '上腕二頭筋', '僧帽筋']], ['チンニングアシスト', ['広背筋', '上腕二頭筋', '僧帽筋']],
+  ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
   ['ショルダープレス', ['三角筋前部', '三角筋中部', '上腕三頭筋']], ['サイドレイズ', ['三角筋中部']],
   ['アームカール', ['上腕二頭筋', '前腕']], ['インクラインアームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
   ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['レッグプレス', ['大腿四頭筋', '大臀筋']],
@@ -246,9 +247,12 @@ const DEFAULT_MENUS = [
   ['トレッドミル ランニング', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'treadmill'],
   ['トレッドミル インクラインウォーク', ['心肺（持久力）', '大臀筋', 'ふくらはぎ'], 'treadmill'],
 ];
-const DATA_VERSION = 4;
+const DATA_VERSION = 5;
 // バージョンごとに追加した初期メニュー（既存ユーザーにも自動で追加する）
-const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'] };
+const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'] };
+// ＋/− の重量の刻み。メニューごとに決められる（null は設定の刻みを使う）
+const WEIGHT_STEPS = [0.5, 1, 1.25, 2.5, 5];
+const DEFAULT_WEIGHT_STEP = { 'アームカール': 1, 'インクラインアームカール': 1 };
 const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・距離・傾斜']];
 // 旧バージョン（大まかな部位）からの移行用
 const OLD_GROUP = { '胸': 'chest', '背中': 'back', '肩': 'shoulder', '腕': 'arm', '脚': 'leg', 'お尻': 'leg', '腹': 'abs', '全身': 'cardio' };
@@ -262,7 +266,7 @@ function defaultData() {
   const parts = DEFAULT_PARTS.map(([name, group, color], i) => ({ id: 'q' + (i+1), name, group, color }));
   const P = n => parts.find(p => p.name === n).id;
   const menus = DEFAULT_MENUS.map(([name, ps, kind = 'strength', distUnit = 'km'], i) =>
-    ({ id: 'n' + (i+1), name, partIds: ps.map(P), kind, distUnit }));
+    ({ id: 'n' + (i+1), name, partIds: ps.map(P), kind, distUnit, weightStep: DEFAULT_WEIGHT_STEP[name] || null }));
   return { version: DATA_VERSION, parts, menus, logs: [], settings: { weightStep: 2.5, includeSub: false, lastBackup: null } };
 }
 const num0 = v => Math.max(0, +v || 0);
@@ -286,7 +290,8 @@ function normalize(d) {
       group: GROUPS.some(g => g.id === p.group) ? p.group : (OLD_GROUP[p.name] || 'other') })) : def.parts,
     menus: Array.isArray(d.menus) ? d.menus.filter(m => m && m.id && m.name).map(m => ({
       id: String(m.id), name: String(m.name), partIds: Array.isArray(m.partIds) ? m.partIds.map(String) : [],
-      kind: KINDS.some(k => k[0] === m.kind) ? m.kind : 'strength', distUnit: m.distUnit === 'm' ? 'm' : 'km' })) : def.menus,
+      kind: KINDS.some(k => k[0] === m.kind) ? m.kind : 'strength', distUnit: m.distUnit === 'm' ? 'm' : 'km',
+      weightStep: WEIGHT_STEPS.includes(+m.weightStep) ? +m.weightStep : null })) : def.menus,
     logs: Array.isArray(d.logs) ? d.logs.filter(l => l && l.id && /^\d{4}-\d{2}-\d{2}$/.test(l.date)).map(normLog) : [],
     settings: Object.assign({}, def.settings, d.settings || {}),
   };
@@ -294,6 +299,8 @@ function normalize(d) {
   if (Array.isArray(d.parts)) {
     if (ver < 2) migrateV1(out);
     else for (const [v, names] of Object.entries(MENUS_ADDED_IN)) if (ver < +v) addDefaultMenus(out, names);
+    // v5: アームカール系は 1kg 刻みに（自分で刻みを決めていないメニューだけ）
+    if (ver < 5) out.menus.forEach(m => { if (m.weightStep == null && DEFAULT_WEIGHT_STEP[m.name]) m.weightStep = DEFAULT_WEIGHT_STEP[m.name]; });
   }
   return out;
 }
@@ -314,7 +321,7 @@ function addDefaultMenus(d, names, onExisting) {
     const i = d.menus.findIndex(m => m.name === name);
     if (i >= 0) { prev = i; if (onExisting) onExisting(d.menus[i], ids); continue; }
     if (names && !names.includes(name)) continue;
-    d.menus.splice(++prev, 0, { id: 'n' + uid(), name, partIds: ids, kind, distUnit });
+    d.menus.splice(++prev, 0, { id: 'n' + uid(), name, partIds: ids, kind, distUnit, weightStep: DEFAULT_WEIGHT_STEP[name] || null });
   }
 }
 function load() {
@@ -351,7 +358,7 @@ function save() {
   catch (e) { toast('保存に失敗しました: ' + e.message); }
 }
 // 旧バージョンのデータは移行した内容で保存し直す
-try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":4}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
+try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":5}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
 
 const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
 function lastByMenu() {
@@ -799,6 +806,7 @@ function renderSettings() {
   </div>
   <div class="card">
     <div class="card-title"><span>重量の刻み（＋/− ボタン）</span></div>
+    <div class="sub" style="margin:-4px 0 8px">メニューごとに刻みを決めている場合（例: アームカールの1kg）は、そちらが優先されます</div>
     <div class="seg small" style="margin:0;box-shadow:none;background:var(--soft)">${[0.5, 1, 1.25, 2.5, 5].map(v =>
       `<button class="${data.settings.weightStep === v ? 'on' : ''}" data-act="setStep" data-v="${v}">${v}kg</button>`).join('')}</div>
   </div>
@@ -842,7 +850,8 @@ function renderSheet() {
   $('#sheet').innerHTML = '<div class="grip"></div>' + html;
 }
 // 記録の種類ごとの入力欄: [項目, ラベル, 単位, ＋/−の刻み, 最小値, ワンタップ候補]
-function entryFields(kind, unit) {
+const menuStep = m => (m && m.weightStep) || data.settings.weightStep;
+function entryFields(kind, unit, wstep = data.settings.weightStep) {
   if (kind === 'distTime') return [
     ['distance', '距離', unit, unit === 'm' ? 25 : 0.5, 0, unit === 'm' ? [500, 1000, 1500, 2000] : [5, 10, 20, 30]],
     ['time', '時間', '分', 5, 0, [15, 30, 45, 60, 90]],
@@ -853,7 +862,7 @@ function entryFields(kind, unit) {
     ['incline', '傾斜', '%', 0.5, 0, [0, 3, 5, 10, 15]],
   ];
   return [
-    ['weight', '重量', 'kg', data.settings.weightStep, 0, [['自重 (0kg)', 0]]],
+    ['weight', '重量', 'kg', wstep, 0, [['自重 (0kg)', 0]]],
     ['reps', '回数', '回', 1, 0, [5, 8, 10, 12, 15, 20]],
     ['sets', 'セット数', 'set', 1, 1, [1, 2, 3, 4, 5]],
   ];
@@ -880,7 +889,7 @@ function sheetEntry() {
     <div class="sheet-title">${esc(name)}</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap">${partTags(ps)}</div>
     <div class="sub" style="margin-top:4px">${fmtDate(log ? log.date : ui.date)}${s.prev ? ` ・ 前回 ${setText(s.prev)}` : ''}</div>
-    ${entryFields(s.kind, s.unit).map(fd => stepper(fd, s.values[fd[0]])).join('')}
+    ${entryFields(s.kind, s.unit, menuStep(m)).map(fd => stepper(fd, s.values[fd[0]])).join('')}
     <input id="f-memo" class="input" style="margin-top:10px" placeholder="メモ（任意）" value="${esc(s.values.memo)}">
     <div class="actions">
       ${log ? '<button class="btn danger" data-act="deleteEntry">削除</button>' : '<button class="btn" data-act="closeSheet">キャンセル</button>'}
@@ -899,7 +908,7 @@ function sheetMenus() {
     <div class="sub">タップで名前・部位・記録の種類を編集。↑↓で並び替え</div>
     <button class="btn block primary" style="margin:12px 0" data-act="editMenu" data-id="">＋ 新しいメニューを追加</button>
     ${data.menus.map((m, i) => `<div class="mrow">
-      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}${m.kind !== 'strength' ? `<span class="kind">${kindLabel(m.kind)}</span>` : ''}</b>
+      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}${m.kind !== 'strength' ? `<span class="kind">${kindLabel(m.kind)}</span>` : ''}${m.kind === 'strength' && m.weightStep ? `<span class="kind">${m.weightStep}kg刻み</span>` : ''}</b>
         <span style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">${partTags(menuParts(m)) || '<span class="sub">部位未設定</span>'}</span></button>
       <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="-1" ${i === 0 ? 'disabled style="opacity:.3"' : ''} aria-label="上へ">↑</button>
       <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="1" ${i === data.menus.length-1 ? 'disabled style="opacity:.3"' : ''} aria-label="下へ">↓</button>
@@ -922,6 +931,9 @@ function sheetMenuEdit() {
     <div class="pick">${KINDS.map(([k, n, d]) => `<button class="pchip ${s.kind === k ? 'on' : ''}" style="--c:var(--accent)" data-act="pickKind" data-id="${k}">${n}<span class="sub" style="font-weight:500">${d}</span></button>`).join('')}</div>
     ${s.kind === 'distTime' ? `<label class="flabel">距離の単位</label>
       <div class="pick">${[['km', 'km（自転車など）'], ['m', 'm（水泳など）']].map(([u, n]) => `<button class="pchip ${s.unit === u ? 'on' : ''}" style="--c:var(--accent)" data-act="pickUnit" data-id="${u}">${n}</button>`).join('')}</div>` : ''}
+    ${s.kind === 'strength' ? `<label class="flabel">重量の刻み（＋/− ボタン）</label>
+      <div class="pick">${[[null, `設定どおり（${data.settings.weightStep}kg）`], ...WEIGHT_STEPS.map(v => [v, v + 'kg'])].map(([v, n]) =>
+        `<button class="pchip ${s.wstep === v ? 'on' : ''}" style="--c:var(--accent)" data-act="pickWStep" data-v="${v ?? ''}">${n}</button>`).join('')}</div>` : ''}
     <label class="flabel">鍛える部位（最大${MAX_PARTS}つ・最初に選んだものが「主」）</label>
     ${partPicker(s.sel, 'pickPart')}
     <button class="link" style="margin-top:8px" data-act="quickAddPart">＋ 部位を新しく追加</button>
@@ -1178,10 +1190,11 @@ const actions = {
   editMenu: el => {
     const m = menuById(el.dataset.id);
     openSheet({ type: 'menuEdit', id: m ? m.id : null, name: m ? m.name : '', sel: m ? [...m.partIds] : [],
-      kind: m ? m.kind : 'strength', unit: m ? m.distUnit : 'km' });
+      kind: m ? m.kind : 'strength', unit: m ? m.distUnit : 'km', wstep: m ? m.weightStep : null });
   },
   pickKind: el => { keepSheetInputs(); ui.sheet.kind = el.dataset.id; renderSheet(); },
   pickUnit: el => { keepSheetInputs(); ui.sheet.unit = el.dataset.id; renderSheet(); },
+  pickWStep: el => { keepSheetInputs(); ui.sheet.wstep = el.dataset.v ? +el.dataset.v : null; renderSheet(); },
   pickPart: el => {
     keepSheetInputs(); const s = ui.sheet, id = el.dataset.id;
     if (s.sel.includes(id)) s.sel = s.sel.filter(x => x !== id);
@@ -1205,7 +1218,7 @@ const actions = {
     if (!name) { toast('メニュー名を入力してください'); return; }
     if (!s.sel.length) { toast('部位を1つ以上選んでください'); return; }
     if (data.menus.some(m => m.name === name && m.id !== s.id)) { toast('同じ名前のメニューがあります'); return; }
-    const fields = { name, partIds: s.sel.slice(0, MAX_PARTS), kind: s.kind, distUnit: s.unit };
+    const fields = { name, partIds: s.sel.slice(0, MAX_PARTS), kind: s.kind, distUnit: s.unit, weightStep: s.kind === 'strength' ? s.wstep : null };
     if (s.id) Object.assign(menuById(s.id), fields);
     else data.menus.push({ id: 'm' + uid(), ...fields });
     save(); render(); openSheet({ type: 'menus' }); toast('保存しました');
