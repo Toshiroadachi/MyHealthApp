@@ -240,16 +240,17 @@ const DEFAULT_MENUS = [
   ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
   ['ショルダープレス', ['三角筋前部', '三角筋中部', '上腕三頭筋']], ['サイドレイズ', ['三角筋中部']],
   ['アームカール', ['上腕二頭筋', '前腕']], ['インクラインアームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
-  ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['レッグプレス', ['大腿四頭筋', '大臀筋']],
+  ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['ブルガリアンスクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']],
+  ['レッグプレス', ['大腿四頭筋', '大臀筋']],
   ['クランチ', ['腹直筋']], ['レッグレイズ', ['腹直筋', '腹斜筋']], ['腹筋7種目', ['腹直筋', '腹斜筋']],
   ['水泳', ['心肺（持久力）', '広背筋', '三角筋前部'], 'distTime', 'm'],
   ['自転車', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'distTime', 'km'],
   ['トレッドミル ランニング', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'treadmill'],
   ['トレッドミル インクラインウォーク', ['心肺（持久力）', '大臀筋', 'ふくらはぎ'], 'treadmill'],
 ];
-const DATA_VERSION = 5;
+const DATA_VERSION = 6;
 // バージョンごとに追加した初期メニュー（既存ユーザーにも自動で追加する）
-const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'] };
+const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'], 6: ['ブルガリアンスクワット'] };
 // ＋/− の重量の刻み。メニューごとに決められる（null は設定の刻みを使う）
 const WEIGHT_STEPS = [0.5, 1, 1.25, 2.5, 5];
 const DEFAULT_WEIGHT_STEP = { 'アームカール': 1, 'インクラインアームカール': 1 };
@@ -358,7 +359,7 @@ function save() {
   catch (e) { toast('保存に失敗しました: ' + e.message); }
 }
 // 旧バージョンのデータは移行した内容で保存し直す
-try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":5}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
+try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":6}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
 
 const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
 function lastByMenu() {
@@ -600,7 +601,8 @@ function menuProgress(menuId, logs, start, end) {
   let kpis, label;
   if (kind === 'strength') {
     const useW = allM.some(l => l.weight > 0);
-    ml.forEach(l => put(l.date, useW ? l.weight : l.reps, Math.max));
+    // 自重(0kg)と荷重が混ざる種目は、重量の推移には荷重した記録だけを使う
+    ml.forEach(l => { if (!useW || l.weight > 0) put(l.date, useW ? l.weight : l.reps, Math.max); });
     const best = allM.reduce((a, l) => Math.max(a, useW ? l.weight : l.reps), 0);
     const rm = allM.reduce((a, l) => Math.max(a, l.weight * (1 + l.reps / 30)), 0);
     kpis = kpi('自己ベスト', fmtN(best, 2), useW ? 'kg' : '回') + kpi('推定1RM', rm ? fmtN(rm) : '-', 'kg') + kpi('期間内', new Set(ml.map(l => l.date)).size, '回実施');
