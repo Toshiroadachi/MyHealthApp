@@ -40,10 +40,3 @@ Streamlit 製の BMI・腹囲・運動距離ログアプリです。
 pip install -r requirements.txt
 streamlit run My_Health_App3.py
 ```
-
-## 🕵️ 潜入作戦 ジャキ城奪還（`jaki-game/`）
-公開URL: https://toshiroadachi.github.io/MyHealthApp/jaki-game/
-
-ドラマ「VIVANT」をモチーフにしたファンメイドの見下ろし型ステルスアクションです（現在はステージ1のみ）。
-- 移動：矢印キー / WASD / 左下のパッド
-- アクション：SPACE / ACTIONボタン（ほふく切り替え・見張りの背後から気絶）
