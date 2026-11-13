@@ -239,6 +239,7 @@ const DEFAULT_MENUS = [
   ['懸垂', ['広背筋', '上腕二頭筋', '僧帽筋']], ['チンニングアシスト', ['広背筋', '上腕二頭筋', '僧帽筋']],
   ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
   ['ショルダープレス', ['三角筋前部', '三角筋中部', '上腕三頭筋']], ['サイドレイズ', ['三角筋中部']],
+  ['アップライトロー', ['三角筋中部', '僧帽筋', '上腕二頭筋']],
   ['アームカール', ['上腕二頭筋', '前腕']], ['インクラインアームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
   ['ディップス', ['上腕三頭筋', '大胸筋', '三角筋前部']],
   ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['ブルガリアンスクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']],
@@ -249,13 +250,13 @@ const DEFAULT_MENUS = [
   ['トレッドミル ランニング', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'treadmill'],
   ['トレッドミル インクラインウォーク', ['心肺（持久力）', '大臀筋', 'ふくらはぎ'], 'treadmill'],
 ];
-const DATA_VERSION = 7;
+const DATA_VERSION = 8;
 // バージョンごとに追加した初期メニュー（既存ユーザーにも自動で追加する）
-const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'], 6: ['ブルガリアンスクワット'], 7: ['ディップス'] };
+const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'], 6: ['ブルガリアンスクワット'], 7: ['ディップス'], 8: ['アップライトロー'] };
 // ＋/− の重量の刻み。メニューごとに決められる（null は設定の刻みを使う）
 const WEIGHT_STEPS = [0.5, 1, 1.25, 2.5, 5];
 const DEFAULT_WEIGHT_STEP = { 'アームカール': 1, 'インクラインアームカール': 1 };
-const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・距離・傾斜']];
+const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・時間・傾斜']];
 // 旧バージョン（大まかな部位）からの移行用
 const OLD_GROUP = { '胸': 'chest', '背中': 'back', '肩': 'shoulder', '腕': 'arm', '脚': 'leg', 'お尻': 'leg', '腹': 'abs', '全身': 'cardio' };
 const V1_MENUS = {
@@ -346,6 +347,8 @@ const logKind = l => { const m = menuById(l.menuId); return m ? m.kind : l.kind;
 const logUnit = l => { const m = menuById(l.menuId); return m ? m.distUnit : l.distUnit; };
 const volume = l => logKind(l) === 'strength' ? l.weight * l.reps * l.sets : 0;
 const cardioTime = l => l.time || (logKind(l) === 'treadmill' && l.speed ? l.distance / l.speed * 60 : 0);
+// トレッドミルは時間で記録するので、距離は 速度×時間 で求める（以前の距離で入れた記録はその距離）
+const cardioDist = l => l.distance || (logKind(l) === 'treadmill' && l.speed && l.time ? l.speed * l.time / 60 : 0);
 const distText = (km, unit) => unit === 'm' ? fmtN(km * 1000, 0) + 'm' : fmtN(km, 2) + 'km';
 const kindLabel = k => (KINDS.find(x => x[0] === k) || KINDS[0])[1];
 
@@ -360,7 +363,7 @@ function save() {
   catch (e) { toast('保存に失敗しました: ' + e.message); }
 }
 // 旧バージョンのデータは移行した内容で保存し直す
-try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":7}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
+try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":8}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
 
 const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
 function lastByMenu() {
@@ -374,7 +377,7 @@ function lastByMenu() {
 function setText(l) {
   const k = logKind(l);
   if (k === 'distTime') return [l.distance ? distText(l.distance, logUnit(l)) : '', l.time ? fmtN(l.time) + '分' : ''].filter(Boolean).join(' ・ ');
-  if (k === 'treadmill') return [l.speed ? fmtN(l.speed) + 'km/h' : '', l.distance ? distText(l.distance, 'km') : '', '傾斜' + fmtN(l.incline) + '%'].filter(Boolean).join(' ・ ');
+  if (k === 'treadmill') return [l.speed ? fmtN(l.speed) + 'km/h' : '', l.time ? fmtN(l.time) + '分' : l.distance ? distText(l.distance, 'km') : '', '傾斜' + fmtN(l.incline) + '%'].filter(Boolean).join(' ・ ');
   return `${l.weight ? fmtN(l.weight, 2) + 'kg × ' : '自重 × '}${fmtN(l.reps)}回 × ${fmtN(l.sets)}set`;
 }
 const partTags = ps => ps.map((p, i) => `<span class="ptag${i === 0 ? ' main' : ''}" style="--c:${p.color}">${esc(p.name)}</span>`).join('');
@@ -402,7 +405,7 @@ function renderRecord() {
   const reps = logs.reduce((a, l) => a + (logKind(l) === 'strength' ? l.reps * l.sets : 0), 0);
   const vol = logs.reduce((a, l) => a + volume(l), 0);
   const cardio = logs.filter(l => logKind(l) !== 'strength');
-  const dist = cardio.reduce((a, l) => a + l.distance, 0), time = cardio.reduce((a, l) => a + cardioTime(l), 0);
+  const dist = cardio.reduce((a, l) => a + cardioDist(l), 0), time = cardio.reduce((a, l) => a + cardioTime(l), 0);
   const dayParts = [];
   logs.forEach(l => { const p = logParts(l)[0]; if (p && !dayParts.some(x => x.id === p.id)) dayParts.push(p); });
   return `
@@ -462,7 +465,7 @@ function renderChips() {
 /* ========== render: history ========== */
 function daySummary(ls) {
   const sets = ls.reduce((a, l) => a + (logKind(l) === 'strength' ? l.sets : 0), 0);
-  const dist = ls.reduce((a, l) => a + (logKind(l) !== 'strength' ? l.distance : 0), 0);
+  const dist = ls.reduce((a, l) => a + (logKind(l) !== 'strength' ? cardioDist(l) : 0), 0);
   return [sets ? sets + 'セット' : '', dist ? fmtN(dist, 2) + 'km' : ''].filter(Boolean).join(' ・ ');
 }
 function renderHistory() {
@@ -533,7 +536,7 @@ function buckets(start, end, unit) {
 function metricVal(l, m) {
   const st = logKind(l) === 'strength';
   return m === 'sets' ? (st ? l.sets : 0) : m === 'reps' ? (st ? l.reps * l.sets : 0) : m === 'volume' ? volume(l)
-    : m === 'distance' ? (st ? 0 : l.distance) : (st ? 0 : cardioTime(l));
+    : m === 'distance' ? (st ? 0 : cardioDist(l)) : (st ? 0 : cardioTime(l));
 }
 // 集計先（部位 or 大分類）。サブ部位を含めない場合は主な部位のみ
 function targets(l, by) {
@@ -610,16 +613,18 @@ function menuProgress(menuId, logs, start, end) {
     label = `日ごとの最大${useW ? '重量 (kg)' : '回数'}`;
   } else {
     const m = unit === 'm' ? 1000 : 1, u = unit === 'm' ? 'm' : 'km';
-    ml.forEach(l => put(l.date, l.distance * m, (a, b) => a + b));
-    const pd = ml.reduce((a, l) => a + l.distance, 0);
+    const pd = ml.reduce((a, l) => a + cardioDist(l), 0);
     if (kind === 'treadmill') {
+      ml.forEach(l => put(l.date, cardioTime(l), (a, b) => a + b));
       kpis = kpi('最高速度', fmtN(allM.reduce((a, l) => Math.max(a, l.speed), 0)), 'km/h') +
-        kpi('最大傾斜', fmtN(allM.reduce((a, l) => Math.max(a, l.incline), 0)), '%') + kpi('期間内距離', fmtN(pd, 2), 'km');
+        kpi('最大傾斜', fmtN(allM.reduce((a, l) => Math.max(a, l.incline), 0)), '%') + kpi('期間内時間', fmtN(ml.reduce((a, l) => a + cardioTime(l), 0), 0), '分');
+      label = '日ごとの時間 (分)';
     } else {
+      ml.forEach(l => put(l.date, l.distance * m, (a, b) => a + b));
       kpis = kpi('最長距離', fmtN(allM.reduce((a, l) => Math.max(a, l.distance), 0) * m, unit === 'm' ? 0 : 2), u) +
         kpi('期間内距離', fmtN(pd * m, unit === 'm' ? 0 : 2), u) + kpi('期間内時間', fmtN(ml.reduce((a, l) => a + cardioTime(l), 0), 0), '分');
+      label = `日ごとの距離 (${u})`;
     }
-    label = `日ごとの距離 (${u})`;
   }
   const pts = Object.keys(byDay).sort().map(d => ({ date: d, v: byDay[d] }));
   return `<div class="kpis" style="margin-bottom:10px">${kpis}</div>
@@ -669,17 +674,17 @@ const MAP_RANGES = [['1w', '1週間', 6], ['1m', '1ヶ月', 29], ['all', '全期
 const SUB_WEIGHT = 0.5;
 function bodyStats(start) {
   const byRegion = {}, others = {};
-  let total = 0, cardioN = 0, cardioDist = 0, cardioTimeSum = 0;
+  let total = 0, cardioN = 0, cardioDistSum = 0, cardioTimeSum = 0;
   for (const l of data.logs) {
     if (l.date < start || l.date > today()) continue;
-    if (logKind(l) !== 'strength') { cardioN++; cardioDist += l.distance; cardioTimeSum += cardioTime(l); continue; }
+    if (logKind(l) !== 'strength') { cardioN++; cardioDistSum += cardioDist(l); cardioTimeSum += cardioTime(l); continue; }
     logParts(l).forEach((p, i) => {
       const v = l.sets * (i === 0 ? 1 : SUB_WEIGHT), r = regionOf(p);
       if (r) byRegion[r] = (byRegion[r] || 0) + v; else others[p.name] = (others[p.name] || 0) + v;
       total += v;
     });
   }
-  return { byRegion, others, total, cardioN, cardioDist, cardioTimeSum };
+  return { byRegion, others, total, cardioN, cardioDist: cardioDistSum, cardioTimeSum };
 }
 function bodySvg(view, st) {
   const max = Math.max(0, ...Object.values(st.byRegion));
@@ -861,7 +866,7 @@ function entryFields(kind, unit, wstep = data.settings.weightStep) {
   ];
   if (kind === 'treadmill') return [
     ['speed', '速度', 'km/h', 0.5, 0, [4, 5, 6, 8, 10, 12]],
-    ['distance', '距離', 'km', 0.1, 0, [1, 2, 3, 5, 10]],
+    ['time', '時間', '分', 5, 0, [10, 15, 20, 30, 45, 60]],
     ['incline', '傾斜', '%', 0.5, 0, [0, 3, 5, 10, 15]],
   ];
   return [
@@ -903,6 +908,7 @@ function entryValues(src, kind, unit) {
   const v = { memo: src && src.memo || '' };
   const def = { weight: 0, reps: 10, sets: 3, distance: 0, time: 30, speed: 6, incline: 0 };
   entryFields(kind, unit).forEach(([f]) => v[f] = src ? toInput(src, f, unit) : def[f]);
+  if (kind === 'treadmill' && src && !src.time) v.time = Math.round(cardioTime(src)) || def.time;
   return v;
 }
 function sheetMenus() {
@@ -1166,7 +1172,8 @@ const actions = {
     entryFields(s.kind, s.unit).forEach(([f]) => v[f] = fromInput(Math.max(0, +$('#f-' + f).value || 0), f, s.unit));
     if (s.kind === 'strength' && (!v.sets || (!v.reps && !v.weight))) { toast('回数とセット数を入力してください'); return; }
     if (s.kind === 'distTime' && !v.distance && !v.time) { toast('距離か時間を入力してください'); return; }
-    if (s.kind === 'treadmill' && !v.distance && !v.speed) { toast('速度か距離を入力してください'); return; }
+    if (s.kind === 'treadmill' && !v.time && !v.speed) { toast('速度か時間を入力してください'); return; }
+    if (s.kind === 'treadmill') v.distance = 0; // 距離は速度×時間から計算する
     v.memo = $('#f-memo').value.trim();
     if (s.logId) {
       Object.assign(data.logs.find(l => l.id === s.logId), v);
