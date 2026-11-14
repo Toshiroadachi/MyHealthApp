@@ -254,8 +254,8 @@ const BASE = [
     B: { L: [[40, 62], [43, 98], [57, 130]], R: [[80, 62], [77, 98], [63, 130]], sc: 6 },
   },
   {
-    id: 'backRub', name: '背中さすり', tag: '肩の柔軟性', sub: '上と下から背中に手を回し、下の手でさすり上げる',
-    tips: ['片手を上から、反対の手を下から背中へ回す', '下の手で背中をさするように上へ動かす', '無理に手をつながなくてOK'],
+    id: 'backRub', name: '背中さすり', tag: '肩の柔軟性', sub: '上と下から背中に手を回し、下の手でさすり上げる。右・左を1回ずつ交互に',
+    tips: ['片手を上から、反対の手を下から背中へ回す', '下の手で背中をさするように上へ動かす', '右→左→右…と1回ずつ交互（左右で1回と数える）'],
     cueA: 'さげる', cueB: 'あげる', sides: true,
     // 右腕が上のとき（左右反転は自動）
     A: { R: [[80, 62], [92, 22], [66, 58]], L: [[40, 62], [28, 106], [56, 108]], sc: 12 },
@@ -264,11 +264,19 @@ const BASE = [
 ];
 const mirrorPts = pts => pts.map(([x, y]) => [120 - x, y]);
 const mirrorPose = p => ({ L: mirrorPts(p.R), R: mirrorPts(p.L), sc: p.sc });
-// 「背中さすり」は 右腕が上 / 左腕が上 の2種目に分ける
-const EXERCISES = BASE.flatMap(e => e.sides ? [
-  { ...e, id: e.id + 'R', name: e.name + '（右腕が上）' },
-  { ...e, id: e.id + 'L', name: e.name + '（左腕が上）', A: mirrorPose(e.A), B: mirrorPose(e.B) },
-] : [e]);
+// 「背中さすり」は 右腕が上 → 左腕が上 を1回ずつ交互に行う（左右で1回）
+const EXERCISES = BASE.map(e => e.sides ? {
+  ...e, name: e.name + '（左右交互）',
+  alt: [{ ...e, side: '右' }, { ...e, side: '左', A: mirrorPose(e.A), B: mirrorPose(e.B) }],
+} : e);
+// 1回あたりの時間（左右交互は 右＋左 で2倍）
+const repSec = ex => S.set.tempo * (ex.alt ? 2 : 1);
+// 1回の中の位置 g(0〜1) から、描く姿勢・動きの量・合図を求める
+function frame(ex, g) {
+  if (!ex.alt) return { ex, t: wave(g), cue: g < 0.5 ? ex.cueB : ex.cueA };
+  const k = g < 0.5 ? 0 : 1, f = (g - k * 0.5) * 2, x = ex.alt[k];
+  return { ex: x, t: wave(f), cue: `${x.side}　${f < 0.5 ? x.cueB : x.cueA}` };
+}
 
 /* ---------- データ ---------- */
 const DEF = { tempo: 2.5, rest: 10, prep: 5, voice: true, beep: true, remind: '21:30' };
@@ -383,7 +391,7 @@ function buildSteps(list) {
   steps.push({ type: 'prep', dur: st.prep, ex: list[0] });
   list.forEach((ex, i) => {
     const reps = S.ex[ex.id].reps;
-    steps.push({ type: 'ex', ex, reps, dur: reps * st.tempo, idx: i });
+    steps.push({ type: 'ex', ex, reps, dur: reps * repSec(ex), idx: i });
     if (i < list.length - 1 && st.rest > 0) steps.push({ type: 'rest', dur: st.rest, ex: list[i + 1] });
   });
   let t = 0; steps.forEach(s => { s.start = t; t += s.dur; });
@@ -437,23 +445,24 @@ function tick() {
   const bar = $('#rBar'), C = 2 * Math.PI * 120;
   bar.style.strokeDasharray = C;
   if (s.type === 'ex') {
-    const tempo = S.set.tempo, rep = Math.min(s.reps - 1, Math.floor(local / tempo)), f = (local - rep * tempo) / tempo;
-    const half = rep * 2 + (f >= 0.5 ? 1 : 0);
+    const rs = repSec(s.ex), rep = Math.min(s.reps - 1, Math.floor(local / rs)), f = (local - rep * rs) / rs;
+    const parts = s.ex.alt ? 4 : 2, half = rep * parts + Math.min(parts - 1, Math.floor(f * parts));
     if (half !== run.lastHalf) {
       if (run.lastHalf >= 0) {
-        if (half % 2 === 1) SOUND.peak();
+        if (half % parts !== 0) SOUND.peak();
         else { SOUND.rep(); say(String(rep), true); } // 1回終わるごとに数える
       }
       run.lastHalf = half;
     }
-    drawFig($('#rFig'), s.ex, wave(f));
-    $('#rCue').textContent = f < 0.5 ? s.ex.cueB : s.ex.cueA;
+    const fr = frame(s.ex, f);
+    drawFig($('#rFig'), fr.ex, fr.t);
+    $('#rCue').textContent = fr.cue;
     $('#rCount').innerHTML = `${rep + 1}<small> / ${s.reps}回</small>`;
     bar.style.strokeDashoffset = C * (1 - local / s.dur);
   } else {
     const left = Math.ceil(s.dur - local);
     if (left !== run.lastSec) { if (left <= 3 && run.lastSec !== -1) SOUND.tick(); run.lastSec = left; }
-    drawFig($('#rFig'), s.ex, wave(local / 3) * 0.6);
+    { const fr = frame(s.ex, (local / 6) % 1); drawFig($('#rFig'), fr.ex, fr.t * 0.6); }
     $('#rCue').textContent = '';
     $('#rCount').innerHTML = `${left}<small> 秒</small>`;
     bar.style.strokeDashoffset = C * (local / s.dur);
@@ -518,8 +527,11 @@ function renderHome() {
 function animThumbs(now) {
   if ($('#homeView').classList.contains('hidden')) return;
   raf = requestAnimationFrame(animThumbs);
-  const f = (now / 1000 / 3) % 1;
-  document.querySelectorAll('[data-fig]').forEach(svg => drawFig(svg, EXERCISES.find(e => e.id === svg.dataset.fig), wave(f)));
+  const sec = now / 1000;
+  document.querySelectorAll('[data-fig]').forEach(svg => {
+    const ex = EXERCISES.find(e => e.id === svg.dataset.fig), fr = frame(ex, (sec / (ex.alt ? 6 : 3)) % 1);
+    drawFig(svg, fr.ex, fr.t);
+  });
 }
 function renderCal() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
