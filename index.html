@@ -240,7 +240,8 @@ const DEFAULT_MENUS = [
   ['デッドリフト', ['脊柱起立筋', '大臀筋', 'ハムストリングス']],
   ['ショルダープレス', ['三角筋前部', '三角筋中部', '上腕三頭筋']], ['サイドレイズ', ['三角筋中部']],
   ['アップライトロー', ['三角筋中部', '僧帽筋', '上腕二頭筋']],
-  ['アームカール', ['上腕二頭筋', '前腕']], ['インクラインアームカール', ['上腕二頭筋', '前腕']], ['フレンチプレス', ['上腕三頭筋']],
+  ['アームカール', ['上腕二頭筋', '前腕']], ['インクラインアームカール', ['上腕二頭筋', '前腕']],
+  ['前腕サーキット', ['前腕'], 'circuit'], ['フレンチプレス', ['上腕三頭筋']],
   ['ディップス', ['上腕三頭筋', '大胸筋', '三角筋前部']],
   ['スクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']], ['ブルガリアンスクワット', ['大腿四頭筋', '大臀筋', 'ハムストリングス']],
   ['レッグプレス', ['大腿四頭筋', '大臀筋']],
@@ -250,13 +251,18 @@ const DEFAULT_MENUS = [
   ['トレッドミル ランニング', ['心肺（持久力）', '大腿四頭筋', 'ふくらはぎ'], 'treadmill'],
   ['トレッドミル インクラインウォーク', ['心肺（持久力）', '大臀筋', 'ふくらはぎ'], 'treadmill'],
 ];
-const DATA_VERSION = 8;
+const DATA_VERSION = 9;
 // バージョンごとに追加した初期メニュー（既存ユーザーにも自動で追加する）
-const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'], 6: ['ブルガリアンスクワット'], 7: ['ディップス'], 8: ['アップライトロー'] };
+const MENUS_ADDED_IN = { 3: ['ナローベンチプレス', 'インクラインベンチプレス', 'チェストプレス', 'インクラインアームカール'], 4: ['腹筋7種目'], 5: ['チンニングアシスト'], 6: ['ブルガリアンスクワット'], 7: ['ディップス'], 8: ['アップライトロー'], 9: ['前腕サーキット'] };
 // ＋/− の重量の刻み。メニューごとに決められる（null は設定の刻みを使う）
 const WEIGHT_STEPS = [0.5, 1, 1.25, 2.5, 5];
-const DEFAULT_WEIGHT_STEP = { 'アームカール': 1, 'インクラインアームカール': 1 };
-const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・時間・傾斜']];
+// 記録画面に出すメニューの説明
+const MENU_NOTES = { '前腕サーキット': 'ダンベルを両手に持って ①手首を上に振る → ②下に振る → ③回す → ④ダンベルを離してグーパー（各種目を同じ秒数）' };
+const DEFAULT_WEIGHT_STEP = { 'アームカール': 1, 'インクラインアームカール': 1, '前腕サーキット': 1 };
+const KINDS = [['strength', '筋トレ', '重量・回数・セット'], ['distTime', '距離・時間', '水泳・自転車など'], ['treadmill', 'トレッドミル', '速度・時間・傾斜'], ['circuit', 'サーキット', '重量・時間(秒)・セット']];
+// セット数で数える種目（筋トレ・サーキット）と、距離/時間で数える有酸素
+const isCardio = k => k === 'distTime' || k === 'treadmill';
+const usesWeight = k => k === 'strength' || k === 'circuit';
 // 旧バージョン（大まかな部位）からの移行用
 const OLD_GROUP = { '胸': 'chest', '背中': 'back', '肩': 'shoulder', '腕': 'arm', '脚': 'leg', 'お尻': 'leg', '腹': 'abs', '全身': 'cardio' };
 const V1_MENUS = {
@@ -279,7 +285,7 @@ function normLog(l) {
     partNames: Array.isArray(l.partNames) ? l.partNames.map(String) : [],
     kind: KINDS.some(k => k[0] === l.kind) ? l.kind : 'strength', distUnit: l.distUnit === 'm' ? 'm' : 'km',
     weight: num0(l.weight), reps: num0(l.reps), sets: num0(l.sets),
-    distance: num0(l.distance), time: num0(l.time), speed: num0(l.speed), incline: num0(l.incline),
+    distance: num0(l.distance), time: num0(l.time), speed: num0(l.speed), incline: num0(l.incline), secs: num0(l.secs),
     memo: String(l.memo || ''), createdAt: +l.createdAt || Date.now(),
   };
 }
@@ -363,7 +369,7 @@ function save() {
   catch (e) { toast('保存に失敗しました: ' + e.message); }
 }
 // 旧バージョンのデータは移行した内容で保存し直す
-try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":8}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
+try { if ((JSON.parse(localStorage.getItem(STORE_KEY) || '{"version":9}').version || 1) < DATA_VERSION) save(); } catch (e) { console.error(e); }
 
 const sortLogs = arr => arr.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
 function lastByMenu() {
@@ -376,6 +382,7 @@ function lastByMenu() {
 }
 function setText(l) {
   const k = logKind(l);
+  if (k === 'circuit') return `${l.weight ? fmtN(l.weight, 2) + 'kg' : '自重'} × ${fmtN(l.secs)}秒 × ${fmtN(l.sets)}set`;
   if (k === 'distTime') return [l.distance ? distText(l.distance, logUnit(l)) : '', l.time ? fmtN(l.time) + '分' : ''].filter(Boolean).join(' ・ ');
   if (k === 'treadmill') return [l.speed ? fmtN(l.speed) + 'km/h' : '', l.time ? fmtN(l.time) + '分' : l.distance ? distText(l.distance, 'km') : '', '傾斜' + fmtN(l.incline) + '%'].filter(Boolean).join(' ・ ');
   return `${l.weight ? fmtN(l.weight, 2) + 'kg × ' : '自重 × '}${fmtN(l.reps)}回 × ${fmtN(l.sets)}set`;
@@ -401,10 +408,10 @@ function toast(msg) {
 function renderRecord() {
   const d = ui.date, isToday = d === today();
   const logs = sortLogs(data.logs.filter(l => l.date === d));
-  const sets = logs.reduce((a, l) => a + (logKind(l) === 'strength' ? l.sets : 0), 0);
+  const sets = logs.reduce((a, l) => a + (usesWeight(logKind(l)) ? l.sets : 0), 0);
   const reps = logs.reduce((a, l) => a + (logKind(l) === 'strength' ? l.reps * l.sets : 0), 0);
   const vol = logs.reduce((a, l) => a + volume(l), 0);
-  const cardio = logs.filter(l => logKind(l) !== 'strength');
+  const cardio = logs.filter(l => isCardio(logKind(l)));
   const dist = cardio.reduce((a, l) => a + cardioDist(l), 0), time = cardio.reduce((a, l) => a + cardioTime(l), 0);
   const dayParts = [];
   logs.forEach(l => { const p = logParts(l)[0]; if (p && !dayParts.some(x => x.id === p.id)) dayParts.push(p); });
@@ -464,8 +471,8 @@ function renderChips() {
 
 /* ========== render: history ========== */
 function daySummary(ls) {
-  const sets = ls.reduce((a, l) => a + (logKind(l) === 'strength' ? l.sets : 0), 0);
-  const dist = ls.reduce((a, l) => a + (logKind(l) !== 'strength' ? cardioDist(l) : 0), 0);
+  const sets = ls.reduce((a, l) => a + (usesWeight(logKind(l)) ? l.sets : 0), 0);
+  const dist = ls.reduce((a, l) => a + (isCardio(logKind(l)) ? cardioDist(l) : 0), 0);
   return [sets ? sets + 'セット' : '', dist ? fmtN(dist, 2) + 'km' : ''].filter(Boolean).join(' ・ ');
 }
 function renderHistory() {
@@ -534,9 +541,9 @@ function buckets(start, end, unit) {
   return keys.map(k => ({ key: k, label: label(k) }));
 }
 function metricVal(l, m) {
-  const st = logKind(l) === 'strength';
-  return m === 'sets' ? (st ? l.sets : 0) : m === 'reps' ? (st ? l.reps * l.sets : 0) : m === 'volume' ? volume(l)
-    : m === 'distance' ? (st ? 0 : cardioDist(l)) : (st ? 0 : cardioTime(l));
+  const k = logKind(l), st = k === 'strength', ca = isCardio(k);
+  return m === 'sets' ? (usesWeight(k) ? l.sets : 0) : m === 'reps' ? (st ? l.reps * l.sets : 0) : m === 'volume' ? volume(l)
+    : m === 'distance' ? (ca ? cardioDist(l) : 0) : (ca ? cardioTime(l) : 0);
 }
 // 集計先（部位 or 大分類）。サブ部位を含めない場合は主な部位のみ
 function targets(l, by) {
@@ -611,6 +618,11 @@ function menuProgress(menuId, logs, start, end) {
     const rm = allM.reduce((a, l) => Math.max(a, l.weight * (1 + l.reps / 30)), 0);
     kpis = kpi('自己ベスト', fmtN(best, 2), useW ? 'kg' : '回') + kpi('推定1RM', rm ? fmtN(rm) : '-', 'kg') + kpi('期間内', new Set(ml.map(l => l.date)).size, '回実施');
     label = `日ごとの最大${useW ? '重量 (kg)' : '回数'}`;
+  } else if (kind === 'circuit') {
+    ml.forEach(l => put(l.date, l.weight, Math.max));
+    kpis = kpi('最大重量', fmtN(allM.reduce((a, l) => Math.max(a, l.weight), 0), 2), 'kg') +
+      kpi('最長時間', fmtN(allM.reduce((a, l) => Math.max(a, l.secs), 0)), '秒') + kpi('期間内', new Set(ml.map(l => l.date)).size, '回実施');
+    label = '日ごとの最大重量 (kg)';
   } else {
     const m = unit === 'm' ? 1000 : 1, u = unit === 'm' ? 'm' : 'km';
     const pd = ml.reduce((a, l) => a + cardioDist(l), 0);
@@ -677,7 +689,7 @@ function bodyStats(start) {
   let total = 0, cardioN = 0, cardioDistSum = 0, cardioTimeSum = 0;
   for (const l of data.logs) {
     if (l.date < start || l.date > today()) continue;
-    if (logKind(l) !== 'strength') { cardioN++; cardioDistSum += cardioDist(l); cardioTimeSum += cardioTime(l); continue; }
+    if (isCardio(logKind(l))) { cardioN++; cardioDistSum += cardioDist(l); cardioTimeSum += cardioTime(l); continue; }
     logParts(l).forEach((p, i) => {
       const v = l.sets * (i === 0 ? 1 : SUB_WEIGHT), r = regionOf(p);
       if (r) byRegion[r] = (byRegion[r] || 0) + v; else others[p.name] = (others[p.name] || 0) + v;
@@ -865,9 +877,14 @@ function entryFields(kind, unit, wstep = data.settings.weightStep) {
     ['time', '時間', '分', 5, 0, [15, 30, 45, 60, 90]],
   ];
   if (kind === 'treadmill') return [
-    ['speed', '速度', 'km/h', 0.5, 0, [4, 5, 6, 8, 10, 12]],
+    ['speed', '速度', 'km/h', 0.1, 0, [4, 5, 6, 8, 10, 12]],
     ['time', '時間', '分', 5, 0, [10, 15, 20, 30, 45, 60]],
     ['incline', '傾斜', '%', 0.5, 0, [0, 3, 5, 10, 15]],
+  ];
+  if (kind === 'circuit') return [
+    ['weight', 'ダンベル重量', 'kg', wstep, 0, [1, 2, 3, 4, 5]],
+    ['secs', '時間（1種目あたり）', '秒', 5, 0, [15, 20, 30, 45, 60]],
+    ['sets', 'セット数', 'set', 1, 1, [1, 2, 3, 4, 5]],
   ];
   return [
     ['weight', '重量', 'kg', wstep, 0, [['自重 (0kg)', 0]]],
@@ -897,6 +914,7 @@ function sheetEntry() {
     <div class="sheet-title">${esc(name)}</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap">${partTags(ps)}</div>
     <div class="sub" style="margin-top:4px">${fmtDate(log ? log.date : ui.date)}${s.prev ? ` ・ 前回 ${setText(s.prev)}` : ''}</div>
+    ${MENU_NOTES[name] ? `<div class="sub" style="margin-top:6px;line-height:1.6">${esc(MENU_NOTES[name])}</div>` : ''}
     ${entryFields(s.kind, s.unit, menuStep(m)).map(fd => stepper(fd, s.values[fd[0]])).join('')}
     <input id="f-memo" class="input" style="margin-top:10px" placeholder="メモ（任意）" value="${esc(s.values.memo)}">
     <div class="actions">
@@ -906,7 +924,7 @@ function sheetEntry() {
 }
 function entryValues(src, kind, unit) {
   const v = { memo: src && src.memo || '' };
-  const def = { weight: 0, reps: 10, sets: 3, distance: 0, time: 30, speed: 6, incline: 0 };
+  const def = { weight: kind === 'circuit' ? 2 : 0, reps: 10, sets: kind === 'circuit' ? 1 : 3, distance: 0, time: 30, speed: 6, incline: 0, secs: 30 };
   entryFields(kind, unit).forEach(([f]) => v[f] = src ? toInput(src, f, unit) : def[f]);
   if (kind === 'treadmill' && src && !src.time) v.time = Math.round(cardioTime(src)) || def.time;
   return v;
@@ -917,7 +935,7 @@ function sheetMenus() {
     <div class="sub">タップで名前・部位・記録の種類を編集。↑↓で並び替え</div>
     <button class="btn block primary" style="margin:12px 0" data-act="editMenu" data-id="">＋ 新しいメニューを追加</button>
     ${data.menus.map((m, i) => `<div class="mrow">
-      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}${m.kind !== 'strength' ? `<span class="kind">${kindLabel(m.kind)}</span>` : ''}${m.kind === 'strength' && m.weightStep ? `<span class="kind">${m.weightStep}kg刻み</span>` : ''}</b>
+      <button class="mmain" data-act="editMenu" data-id="${m.id}"><b>${esc(m.name)}${m.kind !== 'strength' ? `<span class="kind">${kindLabel(m.kind)}</span>` : ''}${usesWeight(m.kind) && m.weightStep ? `<span class="kind">${m.weightStep}kg刻み</span>` : ''}</b>
         <span style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">${partTags(menuParts(m)) || '<span class="sub">部位未設定</span>'}</span></button>
       <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="-1" ${i === 0 ? 'disabled style="opacity:.3"' : ''} aria-label="上へ">↑</button>
       <button class="icon" data-act="moveMenu" data-id="${m.id}" data-d="1" ${i === data.menus.length-1 ? 'disabled style="opacity:.3"' : ''} aria-label="下へ">↓</button>
@@ -940,7 +958,7 @@ function sheetMenuEdit() {
     <div class="pick">${KINDS.map(([k, n, d]) => `<button class="pchip ${s.kind === k ? 'on' : ''}" style="--c:var(--accent)" data-act="pickKind" data-id="${k}">${n}<span class="sub" style="font-weight:500">${d}</span></button>`).join('')}</div>
     ${s.kind === 'distTime' ? `<label class="flabel">距離の単位</label>
       <div class="pick">${[['km', 'km（自転車など）'], ['m', 'm（水泳など）']].map(([u, n]) => `<button class="pchip ${s.unit === u ? 'on' : ''}" style="--c:var(--accent)" data-act="pickUnit" data-id="${u}">${n}</button>`).join('')}</div>` : ''}
-    ${s.kind === 'strength' ? `<label class="flabel">重量の刻み（＋/− ボタン）</label>
+    ${usesWeight(s.kind) ? `<label class="flabel">重量の刻み（＋/− ボタン）</label>
       <div class="pick">${[[null, `設定どおり（${data.settings.weightStep}kg）`], ...WEIGHT_STEPS.map(v => [v, v + 'kg'])].map(([v, n]) =>
         `<button class="pchip ${s.wstep === v ? 'on' : ''}" style="--c:var(--accent)" data-act="pickWStep" data-v="${v ?? ''}">${n}</button>`).join('')}</div>` : ''}
     <label class="flabel">鍛える部位（最大${MAX_PARTS}つ・最初に選んだものが「主」）</label>
@@ -996,14 +1014,15 @@ function keepSheetInputs() {
 
 /* ========== backup ========== */
 const CSV_HEAD = ['日付', 'メニュー', '種類', '主な部位', '部位', '重量(kg)', '回数', 'セット数', 'ボリューム(kg)',
-  '距離(km)', '時間(分)', '速度(km/h)', '傾斜(%)', 'メモ', 'ID', 'メニューID', '登録日時'];
+  '距離(km)', '時間(分)', '速度(km/h)', '傾斜(%)', '時間(秒)', 'メモ', 'ID', 'メニューID', '登録日時'];
 const csvCell = v => { const s = String(v ?? ''); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 function toCsv() {
   const rows = sortLogs([...data.logs]).map(l => {
-    const ps = logParts(l).map(p => p.name), k = logKind(l), st = k === 'strength';
+    const ps = logParts(l).map(p => p.name), k = logKind(l), st = k === 'strength', w = usesWeight(k), ca = isCardio(k);
     return [l.date, logName(l), kindLabel(k), ps[0] || '', ps.join('/'),
-      st ? l.weight : '', st ? l.reps : '', st ? l.sets : '', st ? volume(l) : '',
-      st ? '' : l.distance, st || !l.time ? '' : l.time, k === 'treadmill' ? l.speed : '', k === 'treadmill' ? l.incline : '',
+      w ? l.weight : '', st ? l.reps : '', w ? l.sets : '', st ? volume(l) : '',
+      ca ? l.distance : '', ca && l.time ? l.time : '', k === 'treadmill' ? l.speed : '', k === 'treadmill' ? l.incline : '',
+      k === 'circuit' ? l.secs : '',
       l.memo, l.id, l.menuId, new Date(l.createdAt).toISOString()];
   });
   return '﻿' + [CSV_HEAD, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
@@ -1038,7 +1057,7 @@ function csvToLogs(text) {
   const c = {
     date: col('日付', 'date'), menu: col('メニュー', 'menu'), kind: col('種類', 'kind'), main: col('主な部位', 'main_part'), parts: col('部位', 'parts'),
     w: col('重量(kg)', '重量', 'weight'), r: col('回数', 'reps'), s: col('セット数', 'セット', 'sets'),
-    dist: col('距離(km)', 'distance'), time: col('時間(分)', 'time'), speed: col('速度(km/h)', 'speed'), inc: col('傾斜(%)', 'incline'),
+    dist: col('距離(km)', 'distance'), time: col('時間(分)', 'time'), speed: col('速度(km/h)', 'speed'), inc: col('傾斜(%)', 'incline'), secs: col('時間(秒)', 'secs'),
     memo: col('メモ', 'memo'), id: col('ID', 'id'), at: col('登録日時', 'createdAt'),
   };
   if (c.date < 0 || c.menu < 0) throw new Error('「日付」「メニュー」の列が見つかりません');
@@ -1054,7 +1073,7 @@ function csvToLogs(text) {
     out.push({
       id: get(r, c.id) || 'csv' + uid() + i, date, menuName: menu, partNames: parts.slice(0, MAX_PARTS), kind,
       weight: get(r, c.w), reps: get(r, c.r), sets: get(r, c.s),
-      distance: get(r, c.dist), time: get(r, c.time), speed: get(r, c.speed), incline: get(r, c.inc),
+      distance: get(r, c.dist), time: get(r, c.time), speed: get(r, c.speed), incline: get(r, c.inc), secs: get(r, c.secs),
       memo: c.memo >= 0 ? r[c.memo] || '' : '', createdAt: Date.parse(get(r, c.at)) || Date.now() + i,
     });
   });
@@ -1171,6 +1190,7 @@ const actions = {
     const s = ui.sheet, v = {};
     entryFields(s.kind, s.unit).forEach(([f]) => v[f] = fromInput(Math.max(0, +$('#f-' + f).value || 0), f, s.unit));
     if (s.kind === 'strength' && (!v.sets || (!v.reps && !v.weight))) { toast('回数とセット数を入力してください'); return; }
+    if (s.kind === 'circuit' && (!v.sets || !v.secs)) { toast('時間とセット数を入力してください'); return; }
     if (s.kind === 'distTime' && !v.distance && !v.time) { toast('距離か時間を入力してください'); return; }
     if (s.kind === 'treadmill' && !v.time && !v.speed) { toast('速度か時間を入力してください'); return; }
     if (s.kind === 'treadmill') v.distance = 0; // 距離は速度×時間から計算する
@@ -1228,7 +1248,7 @@ const actions = {
     if (!name) { toast('メニュー名を入力してください'); return; }
     if (!s.sel.length) { toast('部位を1つ以上選んでください'); return; }
     if (data.menus.some(m => m.name === name && m.id !== s.id)) { toast('同じ名前のメニューがあります'); return; }
-    const fields = { name, partIds: s.sel.slice(0, MAX_PARTS), kind: s.kind, distUnit: s.unit, weightStep: s.kind === 'strength' ? s.wstep : null };
+    const fields = { name, partIds: s.sel.slice(0, MAX_PARTS), kind: s.kind, distUnit: s.unit, weightStep: usesWeight(s.kind) ? s.wstep : null };
     if (s.id) Object.assign(menuById(s.id), fields);
     else data.menus.push({ id: 'm' + uid(), ...fields });
     save(); render(); openSheet({ type: 'menus' }); toast('保存しました');
